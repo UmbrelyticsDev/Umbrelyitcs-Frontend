@@ -295,6 +295,18 @@ export default function AddTeacherForm({
         <Form noValidate autoComplete="off" onSubmit={handleSubmit}>
           <Grid container spacing={3}>
             <Grid item xs={12} md={12}>
+              <Box sx={{ width: 88, flexShrink: 0 }}>
+                <UploadAvatar
+                  disabled={tempEditId ? false : deptLimit}
+                  accept="image/*"
+                  file={values.avatarUrl}
+                  maxSize={3145728}
+                  onDrop={handleDropAvatar}
+                  onDelete={() => setFieldValue('avatarUrl', null)}
+                  error={Boolean(touched.avatarUrl && errors.avatarUrl)}
+                />
+              </Box>
+
               <Paper variant={user_type !== 4 ? '' : 'outlined'} sx={{ p: 3 }}>
                 <Stack
                   direction={{ xs: 'column', sm: 'column', md: 'column' }}
@@ -425,43 +437,29 @@ export default function AddTeacherForm({
                   </Stack>
                 )}
 
-                <Box sx={{ mt: 2 }}>
-                  <Typography
-                    variant="subtitle2"
-                    sx={{ mb: 2, color: 'text.secondary' }}
-                  >
-                    {user_type !== 4
-                      ? 'Add Teacher Image'
-                      : 'Update Teacher Image'}
-                  </Typography>
-                  <Paper variant="outlined" sx={{ p: 2 }}>
-                    <UploadAvatar
-                      disabled={tempEditId ? false : deptLimit}
-                      accept="image/*"
-                      file={values.avatarUrl}
-                      maxSize={3145728}
-                      onDrop={handleDropAvatar}
-                      onDelete={() => setFieldValue('avatarUrl', null)}
-                      error={Boolean(touched.avatarUrl && errors.avatarUrl)}
-                      caption={
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            mx: 'auto',
-                            display: 'block',
-                            textAlign: 'center',
-                            color: 'text.secondary',
-                          }}
-                        >
-                          Allowed *.jpeg, *.jpg, *.png, *.gif
-                          <br /> max size of {fData(3145728)}
-                        </Typography>
-                      }
-                    />
-                    <FormHelperText error sx={{ px: 2, textAlign: 'center' }}>
-                      {touched.avatarUrl && errors.avatarUrl}
-                    </FormHelperText>
-                  </Paper>
+                <Box
+                  sx={{
+                    mt: 2.5,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2,
+                  }}
+                >
+                  <Box>
+                    <Typography variant="subtitle2">
+                      {user_type !== 4 ? 'Teacher Image' : 'Profile Picture'}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{ color: 'text.secondary' }}
+                    >
+                      Click the circle to upload. JPG, PNG or GIF, max{' '}
+                      {fData(3145728)}.
+                    </Typography>
+                    {touched.avatarUrl && errors.avatarUrl && (
+                      <FormHelperText error>{errors.avatarUrl}</FormHelperText>
+                    )}
+                  </Box>
                 </Box>
               </Paper>
 

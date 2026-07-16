@@ -120,7 +120,7 @@ export default function Router() {
           path: 'schools/department/teacher-listing',
           element: <TeacherListing />,
         },
-        { path: 'teacher-details', element: <TeacherListing /> }, // teacher listing teacher login
+        { path: 'teacher-details', element: <AddSchool /> },
         {
           path: 'schools/department/grade-details/teacher-subject-listing',
           element: <TeacherSubjectListing />,

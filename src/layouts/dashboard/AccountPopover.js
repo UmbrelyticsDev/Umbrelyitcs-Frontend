@@ -34,7 +34,7 @@ import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
 const user_type = JSON.parse(localStorage.getItem('user_type'))
 
 const MENU_OPTIONS = [
-  {
+  /* {
     label: 'Home',
     icon: homeFill,
     linkTo:
@@ -57,7 +57,7 @@ const MENU_OPTIONS = [
         : user_type === 4
         ? PATH_DASHBOARD.general.teacherProfile
         : '',
-  },
+  },*/
 ]
 
 // NEW: Edit picture option - ONLY for teachers
