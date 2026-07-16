@@ -21,13 +21,24 @@ import {
   Box,
   InputAdornment,
   IconButton,
+  CardContent,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  CircularProgress,
 } from '@material-ui/core'
 import { Icon } from '@iconify/react'
 import fakeRequest from 'src/utils/fakeRequest'
 import { UploadAvatar } from 'src/components/upload'
 import { fData } from 'src/utils/formatNumber'
 import copyFill from '@iconify/icons-eva/copy-fill'
-import { Email, Password } from '@material-ui/icons'
+import {
+  Email,
+  Password,
+  School as SchoolIcon,
+  CalendarToday as CalendarIcon,
+} from '@material-ui/icons'
 import CopyClipboard from 'src/components/CopyClipboard'
 import Image from '../../../../../../../images/Teacher1.png'
 import { PATH_DASHBOARD } from 'src/routes/paths'
@@ -35,6 +46,8 @@ import { useNavigate } from 'react-router'
 import axios from 'axios'
 import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
 import { storage } from 'src/firebase/Constant'
+import { Link as RouterLink } from 'react-router-dom'
+import toolAxios from 'src/_apis_/toolAxios'
 
 // utils
 
@@ -68,6 +81,16 @@ export default function AddTeacherForm({
 
   const hodEditId = tempEditId || user.teacherId
   const theDeparmentId = departmentId || user.departmentId
+  const [schoolData, setSchoolData] = useState(null)
+  const [toolClasses, setToolClasses] = useState([])
+  const [classesLoading, setClassesLoading] = useState(false)
+
+  useEffect(() => {
+    if (user_type === 4) {
+      fetchSchoolInfo()
+      fetchToolClasses()
+    }
+  }, [user_type, data.schoolId])
 
   useEffect(() => {
     fetchTeacherDetailsById()
@@ -289,6 +312,31 @@ export default function AddTeacherForm({
     window.history.back()
   }
 
+  const fetchSchoolInfo = async () => {
+    const sid = data.schoolId || schoolId
+    if (!sid) return
+    try {
+      const res = await axios.get(
+        `${REST_API_END_POINT}getSchool-details/${sid}`,
+      )
+      if (res.data.status === 1) setSchoolData(res.data.result)
+    } catch (err) {
+      console.log('Could not fetch school info', err)
+    }
+  }
+
+  const fetchToolClasses = async () => {
+    try {
+      setClassesLoading(true)
+      const res = await toolAxios.get('/api/timetables/classes')
+      setToolClasses(res.data.data || [])
+    } catch (err) {
+      console.log('Could not fetch classes', err)
+    } finally {
+      setClassesLoading(false)
+    }
+  }
+
   return (
     <>
       <FormikProvider value={formik}>
@@ -444,24 +492,93 @@ export default function AddTeacherForm({
                     alignItems: 'center',
                     gap: 2,
                   }}
-                >
-                  <Box>
-                    <Typography variant="subtitle2">
-                      {user_type !== 4 ? 'Teacher Image' : 'Profile Picture'}
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      sx={{ color: 'text.secondary' }}
-                    >
-                      Click the circle to upload. JPG, PNG or GIF, max{' '}
-                      {fData(3145728)}.
-                    </Typography>
-                    {touched.avatarUrl && errors.avatarUrl && (
-                      <FormHelperText error>{errors.avatarUrl}</FormHelperText>
-                    )}
-                  </Box>
-                </Box>
+                ></Box>
               </Paper>
+
+              {user_type === 4 && (
+                <>
+                  {/* School */}
+                  <Card variant="outlined" sx={{ mt: 3 }}>
+                    <CardContent>
+                      <Stack direction="row" alignItems="center" spacing={1.5}>
+                        <SchoolIcon color="primary" />
+                        <Box>
+                          <Typography variant="subtitle2">
+                            {schoolData?.school_name || '—'}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            sx={{ color: 'text.secondary' }}
+                          >
+                            {schoolData?.location || 'Location not set'}
+                          </Typography>
+                        </Box>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+
+                  {/* Classes */}
+                  <Card variant="outlined" sx={{ mt: 2 }}>
+                    <CardContent>
+                      <Stack
+                        direction="row"
+                        justifyContent="space-between"
+                        alignItems="center"
+                        sx={{ mb: 1 }}
+                      >
+                        <Typography variant="subtitle2">My Classes</Typography>
+                        <Button
+                          size="small"
+                          component={RouterLink}
+                          to={PATH_DASHBOARD.general.teacherTimetable}
+                          startIcon={<CalendarIcon />}
+                        >
+                          Manage
+                        </Button>
+                      </Stack>
+                      <Divider sx={{ mb: 1 }} />
+
+                      {classesLoading ? (
+                        <Box sx={{ textAlign: 'center', py: 2 }}>
+                          <CircularProgress size={22} />
+                        </Box>
+                      ) : toolClasses.length === 0 ? (
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: 'text.disabled',
+                            fontStyle: 'italic',
+                            py: 1,
+                          }}
+                        >
+                          No classes yet — use Manage to create one.
+                        </Typography>
+                      ) : (
+                        <List dense disablePadding>
+                          {toolClasses.map((cls) => (
+                            <ListItem
+                              key={cls.id}
+                              button
+                              component={RouterLink}
+                              to={`${PATH_DASHBOARD.general.teacherTimetable}?editClass=${cls.id}`}
+                              sx={{ borderRadius: 1 }}
+                            >
+                              <ListItemText
+                                primary={cls.class_name}
+                                secondary={`${cls.subject} • ${
+                                  cls.grade_level
+                                } • ${cls.student_count || 0} students${
+                                  cls.room ? ` • Room ${cls.room}` : ''
+                                }`}
+                              />
+                            </ListItem>
+                          ))}
+                        </List>
+                      )}
+                    </CardContent>
+                  </Card>
+                </>
+              )}
 
               <Stack direction="row" justifyContent="flex-end" sx={{ mt: 3 }}>
                 <LoadingButton

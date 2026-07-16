@@ -32,6 +32,7 @@ import {
 import { useSnackbar } from 'notistack'
 import Page from '../../../../components/Page'
 import toolAxios from 'src/_apis_/toolAxios'
+import { useSearchParams } from 'react-router-dom'
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
 const EMPTY_ENTRY = {
@@ -66,6 +67,7 @@ export default function TeacherTimetable() {
   const [classes, setClasses] = useState([])
   const [sessionConfig, setSessionConfig] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [searchParams, setSearchParams] = useSearchParams()
 
   // Schedule dialog
   const [entryDialog, setEntryDialog] = useState(false)
@@ -80,6 +82,23 @@ export default function TeacherTimetable() {
   useEffect(() => {
     fetchData()
   }, [])
+
+  // Auto-open the class editor when arriving with ?editClass=<id>
+  useEffect(() => {
+    const editId = searchParams.get('editClass')
+    if (!editId || classes.length === 0) return
+
+    const target = classes.find((c) => String(c.id) === String(editId))
+    if (target) {
+      openEditClass(target)
+    } else {
+      enqueueSnackbar('That class no longer exists', { variant: 'warning' })
+    }
+
+    // Clear the param so a refresh doesn't reopen the dialog
+    searchParams.delete('editClass')
+    setSearchParams(searchParams, { replace: true })
+  }, [classes, searchParams])
 
   const fetchData = async () => {
     try {
