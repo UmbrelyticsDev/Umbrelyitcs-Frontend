@@ -12,6 +12,7 @@ import {
   Card,
   CardContent,
   Button,
+  Stack,
 } from '@material-ui/core'
 import { School as SchoolIcon } from '@material-ui/icons'
 import useAuth from '../../../../hooks/useAuth'
@@ -19,9 +20,16 @@ import Page from '../../../../components/Page'
 import DepartmentAnalyticsCarousal from '../dashboard-school/department-analytics-carousal'
 import GradeAnalyticsCarousal from '../dashboard-school/grade-analytics-carousal'
 import SubjectAnalyticsCarousal from '../dashboard-school/subject-analytics-carousal'
-import SchoolDetailsTeacher from './school-details-teacher'
 import ClassAnalyticsCarousal from '../schools/departments/grades-listing/class-analytics-caroussal'
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+} from '@material-ui/core'
+import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
+import { PATH_DASHBOARD } from '../../../../routes/paths'
 import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
 
 const style = {
@@ -77,10 +85,14 @@ export default function DashboardTeacher() {
   const user = JSON.parse(localStorage.getItem('user'))
   const [data, setData] = useState([])
   const [teacherData, setTeacherData] = useState([])
+  const [classes, setClasses] = useState([])
+  const [selectedClassModal, setSelectedClassModal] = useState(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
     fetchDashboardData()
     fetchTeacherDataById()
+    fetchTeacherClasses()
   }, [])
 
   const fetchDashboardData = async () => {
@@ -111,6 +123,21 @@ export default function DashboardTeacher() {
       setTeacherData(response.data.result)
     } else {
       console.log('not getting data')
+    }
+  }
+
+  const fetchTeacherClasses = async () => {
+    try {
+      const res = await axios.post(
+        `${REST_API_END_POINT}class/get-class-by-teacher-id`,
+        {
+          teacherId: user.teacherId, // confirm this is the id that appears in class.teacherId (162)
+        },
+      )
+      if (res.data.status === 1) setClasses(res.data.data)
+      else setClasses([])
+    } catch (err) {
+      console.log('Error fetching classes', err)
     }
   }
 
@@ -160,53 +187,41 @@ export default function DashboardTeacher() {
           </Typography>
 
           {/* LESSON PLANNER CARD */}
-          <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6} md={4}>
-              <Card
-                sx={{
-                  background:
-                    'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  color: 'white',
-                  cursor: 'pointer',
-                  transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                  '&:hover': {
-                    transform: 'translateY(-5px)',
-                    boxShadow: '0 12px 20px rgba(0,0,0,0.15)',
-                  },
-                }}
-              >
-                <CardContent sx={{ textAlign: 'center', py: 4 }}>
-                  <SchoolIcon sx={{ fontSize: 48, mb: 2 }} />
-                  <Typography variant="h6" sx={{ mb: 1, fontWeight: 'bold' }}>
-                    Lesson Planner Tool
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 3, opacity: 0.9 }}>
-                    Create and manage lesson plans with AI assistance
-                  </Typography>
-                  <Button
-                    variant="contained"
-                    sx={{
-                      backgroundColor: 'white',
-                      color: '#667eea',
-                      fontWeight: 'bold',
-                      '&:hover': {
-                        backgroundColor: '#f0f0f0',
-                      },
-                    }}
-                    onClick={() =>
-                      window.open('http://localhost:3001', '_blank')
-                    }
-                  >
-                    Open Tool
-                  </Button>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
 
           <Grid container spacing={2} sx={{ mb: -8 }}>
             <Grid item xs={12} md={12}>
-              <SchoolDetailsTeacher data={data} />
+              <Grid container spacing={3} sx={{ mb: 3 }}>
+                {classes.map((cls) => (
+                  <Grid item xs={12} sm={6} md={4} key={cls.id}>
+                    <Card
+                      sx={{
+                        p: 3,
+                        cursor: 'pointer',
+                        '&:hover': { boxShadow: 6 },
+                      }}
+                      onClick={() => setSelectedClassModal(cls)}
+                    >
+                      <Typography
+                        variant="h6"
+                        sx={{ fontWeight: 'bold', mb: 1 }}
+                      >
+                        {cls.name}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {cls.subjectName || 'Subject'} •{' '}
+                        {cls.gradeName || 'Grade'}
+                      </Typography>
+                    </Card>
+                  </Grid>
+                ))}
+                {classes.length === 0 && (
+                  <Grid item xs={12}>
+                    <Typography color="text.secondary" sx={{ p: 2 }}>
+                      No classes assigned yet.
+                    </Typography>
+                  </Grid>
+                )}
+              </Grid>
             </Grid>
             <Grid
               item
@@ -279,6 +294,53 @@ export default function DashboardTeacher() {
               })}
             </Grid>
           </Grid>
+          <Dialog
+            open={!!selectedClassModal}
+            onClose={() => setSelectedClassModal(null)}
+            maxWidth="sm"
+            fullWidth
+          >
+            {selectedClassModal && (
+              <>
+                <DialogTitle>{selectedClassModal.name}</DialogTitle>
+                <DialogContent dividers>
+                  <Stack spacing={1.5}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">
+                        Subject
+                      </Typography>
+                      <Typography variant="body1">
+                        {selectedClassModal.subjectName || '—'}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">
+                        Grade
+                      </Typography>
+                      <Typography variant="body1">
+                        {selectedClassModal.gradeName || '—'}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </DialogContent>
+                <DialogActions>
+                  <Button
+                    variant="contained"
+                    onClick={() =>
+                      navigate(
+                        `${PATH_DASHBOARD.general.teacherTimetable}?editClass=${selectedClassModal.id}`,
+                      )
+                    }
+                  >
+                    View Timetable
+                  </Button>
+                  <Button onClick={() => setSelectedClassModal(null)}>
+                    Close
+                  </Button>
+                </DialogActions>
+              </>
+            )}
+          </Dialog>
         </Container>
       )}
     </Page>

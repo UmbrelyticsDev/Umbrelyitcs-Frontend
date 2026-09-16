@@ -89,6 +89,7 @@ export default function Router() {
         { path: 'hod-dashboard', element: <DashboardHOD /> },
         { path: 'teacher-dashboard', element: <DashboardTeacher /> },
         { path: 'teacher-dashboard', element: <DashboardTeacher /> },
+        { path: 'analytics', element: <DashboardAnalytics /> },
         { path: 'teacher-timetable', element: <TeacherTimetable /> },
         // { path: '/', element: <Navigate to="/dashboard/app" replace /> },
         // { path: 'app', element: <GeneralApp /> },
@@ -348,6 +349,13 @@ const DashboardTeacher = Loadable(
   lazy(() =>
     import(
       '../pages/dashboard/Umbrelytics/dashboard-teacher/dashboard-teacher'
+    ),
+  ),
+)
+const DashboardAnalytics = Loadable(
+  lazy(() =>
+    import(
+      '../pages/dashboard/Umbrelytics/dashboard-analytics/dashboard-analytics'
     ),
   ),
 )

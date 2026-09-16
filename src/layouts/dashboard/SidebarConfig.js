@@ -118,6 +118,11 @@ const sidebarConfig = [
               path: PATH_DASHBOARD.general.teacherTimetable,
               icon: ICONS.calendar,
             },
+            {
+              title: 'Analytics',
+              path: PATH_DASHBOARD.general.analytics,
+              icon: ICONS.analytics,
+            },
           ]
         : []),
     ],

@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types'
 import { useEffect, useState } from 'react'
-import { Link as RouterLink, useLocation } from 'react-router-dom'
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
 // material
 import { alpha, experimentalStyled as styled } from '@material-ui/core/styles'
 import {
@@ -11,6 +11,10 @@ import {
   Typography,
   Tooltip,
 } from '@material-ui/core'
+import { ListItemStyle, ListItemIconStyle } from '../../components/NavSection'
+import { ListItemText } from '@material-ui/core'
+import logOutFill from '@iconify/icons-eva/log-out-fill'
+import { Icon } from '@iconify/react'
 // hooks
 import useAuth from '../../hooks/useAuth'
 // routes
@@ -21,6 +25,7 @@ import Scrollbar from '../../components/Scrollbar'
 import NavSection from '../../components/NavSection'
 import { MHidden } from '../../components/@material-extend'
 import TeachingPhilosophyModal from '../../components/TeachingPhilosophyModal'
+import SvgIconStyle from '../../components/SvgIconStyle'
 //
 import sidebarConfig from './SidebarConfig'
 import { DocIcon } from '../../assets'
@@ -33,6 +38,13 @@ import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
 // ----------------------------------------------------------------------
 
 const DRAWER_WIDTH = 280
+
+const getIcon = (name) => (
+  <SvgIconStyle
+    src={`/static/icons/navbar/${name}.svg`}
+    sx={{ width: '100%', height: '100%' }}
+  />
+)
 
 const RootStyle = styled('div')(({ theme }) => ({
   [theme.breakpoints.up('lg')]: {
@@ -67,7 +79,7 @@ DashboardSidebar.propTypes = {
 
 export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
   const { pathname } = useLocation()
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const user_type = JSON.parse(localStorage.getItem('user_type'))
   const [singleSchoolData, setSingleSchoolData] = useState(false)
   const schoolId = JSON.parse(localStorage.getItem('schoolId'))
@@ -76,6 +88,7 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
   const [teacherData, setTeacherData] = useState([])
   const [hodData, setHodData] = useState([])
   const [philosophyModalOpen, setPhilosophyModalOpen] = useState(false)
+  const navigate = useNavigate()
 
   const fetchSchoolById = async () => {
     await axios
@@ -127,6 +140,15 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname])
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+      navigate('/')
+    } catch (error) {
+      console.error(error)
+    }
+  }
 
   const renderContent = (
     <Scrollbar
@@ -229,69 +251,51 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
 
       <NavSection navConfig={sidebarConfig} />
 
-      {/* NEW: Teaching Philosophy Button - ONLY for teachers */}
+      {/* Teaching Philosophy - styled as a nav item */}
       {user_type === 4 && (
-        <Box sx={{ px: 2.5, py: 2 }}>
-          <Button
-            fullWidth
-            variant="contained"
-            color="primary"
-            onClick={() => setPhilosophyModalOpen(true)}
-          >
-            Teaching Philosophy
-          </Button>
-        </Box>
+        <ListItemStyle
+          onClick={() => setPhilosophyModalOpen(true)}
+          sx={{ cursor: 'pointer' }}
+        >
+          <ListItemIconStyle>{getIcon('ic_blog')}</ListItemIconStyle>
+          <ListItemText disableTypography primary="Philosophy" />
+        </ListItemStyle>
+      )}
+
+      {/* Lesson Planning - styled as a nav item */}
+      {user_type === 4 && (
+        <ListItemStyle
+          onClick={() => window.open('http://localhost:3001', '_blank')}
+          sx={{ cursor: 'pointer' }}
+        >
+          <ListItemIconStyle>{getIcon('ic_kanban')}</ListItemIconStyle>
+          <ListItemText disableTypography primary="Lesson Planner Tool" />
+        </ListItemStyle>
       )}
 
       <Box sx={{ flexGrow: 1 }} />
 
-      <Box sx={{ px: 2.5, pb: 3, mt: 10 }}>
-        <DocStyle>
-          <img
-            src={Logo1}
-            alt="Logo"
-            style={{
-              width: '160px',
-              height: '140px',
-              display: 'flex',
-              justifyContent: 'center',
-              marginLeft: '22px',
-              marginTop: '-46px',
-            }}
-          />
-          <Typography
-            gutterBottom
-            variant="subtitle1"
-            sx={{
-              color: 'grey.800',
-              display: 'flex',
-              justifyContent: 'center',
-              mb: 0,
-              mt: -5,
-            }}
-          >
-            {user_type === 1
-              ? 'Welcome Admin'
-              : user_type === 2
-              ? 'Welcome School Admin'
-              : user_type === 3
-              ? 'Welcome HOD'
-              : user_type === 4
-              ? 'Welcome Teacher'
-              : ''}
-          </Typography>
-          <Typography
-            variant="body2"
-            sx={{
-              mb: 0,
-              color: 'grey.600',
-              display: 'flex',
-              justifyContent: 'center',
-            }}
-          >
-            Umbrelytics
-          </Typography>
-        </DocStyle>
+      <Box sx={{ flexGrow: 1 }} />
+
+      <Box sx={{ px: 2.5, pb: 3 }}>
+        <Button
+          fullWidth
+          onClick={handleLogout}
+          startIcon={<Icon icon={logOutFill} />}
+          sx={{
+            justifyContent: 'flex-start',
+            color: 'error.main',
+            fontWeight: 500,
+            px: 1.5,
+            py: 1.25,
+            borderRadius: 1,
+            '&:hover': {
+              bgcolor: 'error.lighter',
+            },
+          }}
+        >
+          Logout
+        </Button>
       </Box>
     </Scrollbar>
   )

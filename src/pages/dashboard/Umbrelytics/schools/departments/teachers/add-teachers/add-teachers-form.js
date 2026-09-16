@@ -27,6 +27,7 @@ import {
   ListItem,
   ListItemText,
   CircularProgress,
+  Checkbox,
 } from '@material-ui/core'
 import { Icon } from '@iconify/react'
 import fakeRequest from 'src/utils/fakeRequest'
@@ -59,6 +60,14 @@ const Subject = [
   { id: 3, label: 'Chemistry' },
 ]
 
+const groupByGrade = (classes) => {
+  const groups = {}
+  for (const cls of classes) {
+    if (!groups[cls.gradeName]) groups[cls.gradeName] = []
+    groups[cls.gradeName].push(cls)
+  }
+  return Object.entries(groups)
+}
 // ----------------------------------------------------------------------
 
 export default function AddTeacherForm({
@@ -81,14 +90,13 @@ export default function AddTeacherForm({
 
   const hodEditId = tempEditId || user.teacherId
   const theDeparmentId = departmentId || user.departmentId
+  const [subjectClasses, setSubjectClasses] = useState({})
   const [schoolData, setSchoolData] = useState(null)
-  const [toolClasses, setToolClasses] = useState([])
   const [classesLoading, setClassesLoading] = useState(false)
 
   useEffect(() => {
     if (user_type === 4) {
       fetchSchoolInfo()
-      fetchToolClasses()
     }
   }, [user_type, data.schoolId])
 
@@ -210,6 +218,7 @@ export default function AddTeacherForm({
       email: '',
       phone: '',
       subjects: [],
+      assignedClasses: [],
       departmentId: theDeparmentId || null,
       schoolId: schoolId || null,
       teaching_philosophy: '',
@@ -263,6 +272,25 @@ export default function AddTeacherForm({
     setFieldValue,
     getFieldProps,
   } = formik
+
+  useEffect(() => {
+    const loadClasses = async () => {
+      const map = {}
+      for (const subj of values.subjects || []) {
+        try {
+          const res = await axios.get(
+            `${REST_API_END_POINT}get-classes-by-subject/${subj.id}`,
+          )
+          map[subj.id] = res.data.status === 1 ? res.data.result : []
+        } catch {
+          map[subj.id] = []
+        }
+      }
+      setSubjectClasses(map)
+    }
+    if (values.subjects?.length) loadClasses()
+    else setSubjectClasses({})
+  }, [values.subjects])
 
   const handleDropAvatar = useCallback(
     (acceptedFiles) => {
@@ -322,18 +350,6 @@ export default function AddTeacherForm({
       if (res.data.status === 1) setSchoolData(res.data.result)
     } catch (err) {
       console.log('Could not fetch school info', err)
-    }
-  }
-
-  const fetchToolClasses = async () => {
-    try {
-      setClassesLoading(true)
-      const res = await toolAxios.get('/api/timetables/classes')
-      setToolClasses(res.data.data || [])
-    } catch (err) {
-      console.log('Could not fetch classes', err)
-    } finally {
-      setClassesLoading(false)
     }
   }
 
@@ -457,6 +473,74 @@ export default function AddTeacherForm({
                       />
                     )}
                   />
+                  {(values.subjects || []).map((subj) => (
+                    <Box
+                      key={subj.id}
+                      sx={{
+                        mt: 2,
+                        p: 2,
+                        border: '1px solid #eee',
+                        borderRadius: 1,
+                      }}
+                    >
+                      <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                        {subj.subjectName} — Assign Classes
+                      </Typography>
+                      {(subjectClasses[subj.id] || []).length === 0 ? (
+                        <Typography variant="caption" color="text.secondary">
+                          No classes available for this subject.
+                        </Typography>
+                      ) : (
+                        groupByGrade(subjectClasses[subj.id]).map(
+                          ([gradeName, classes]) => (
+                            <Box key={gradeName} sx={{ ml: 1, mt: 1 }}>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ fontWeight: 'bold' }}
+                              >
+                                {gradeName}
+                              </Typography>
+                              <Box
+                                sx={{
+                                  display: 'flex',
+                                  flexWrap: 'wrap',
+                                  ml: 1,
+                                }}
+                              >
+                                {classes.map((cls) => (
+                                  <FormControlLabel
+                                    key={cls.id}
+                                    control={
+                                      <Checkbox
+                                        size="small"
+                                        checked={(
+                                          values.assignedClasses || []
+                                        ).includes(cls.id)}
+                                        onChange={(e) => {
+                                          const cur =
+                                            values.assignedClasses || []
+                                          setFieldValue(
+                                            'assignedClasses',
+                                            e.target.checked
+                                              ? [...cur, cls.id]
+                                              : cur.filter(
+                                                  (id) => id !== cls.id,
+                                                ),
+                                          )
+                                        }}
+                                      />
+                                    }
+                                    label={cls.className}
+                                  />
+                                ))}
+                              </Box>
+                            </Box>
+                          ),
+                        )
+                      )}
+                    </Box>
+                  ))}
                 </Stack>
 
                 {/* NEW: Teaching Philosophy Field */}
