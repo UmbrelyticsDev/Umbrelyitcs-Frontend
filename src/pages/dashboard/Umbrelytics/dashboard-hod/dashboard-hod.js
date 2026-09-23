@@ -194,7 +194,7 @@ export default function DashboardHOD() {
                       },
                     }}
                     onClick={() =>
-                      window.open('http://localhost:3002', '_blank')
+                      window.open(window.location.origin, '_blank')
                     }
                   >
                     Open Tool

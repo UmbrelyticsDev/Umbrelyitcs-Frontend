@@ -3,7 +3,7 @@ import axios from 'axios'
 // Points at the UMBLPTOOL backend (port 3000).
 // Sends the shared SSO cookie + Bearer token so the tool authenticates the teacher.
 const toolAxios = axios.create({
-  baseURL: 'http://localhost:3000',
+  baseURL: process.env.REACT_APP_TOOL_API_URL || 'http://localhost:3000',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',

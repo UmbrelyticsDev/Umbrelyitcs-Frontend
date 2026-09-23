@@ -265,7 +265,12 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
       {/* Lesson Planning - styled as a nav item */}
       {user_type === 4 && (
         <ListItemStyle
-          onClick={() => window.open('http://localhost:3001', '_blank')}
+          onClick={() =>
+            window.open(
+              process.env.REACT_APP_TOOL_URL || 'http://localhost:3001',
+              '_blank',
+            )
+          }
           sx={{ cursor: 'pointer' }}
         >
           <ListItemIconStyle>{getIcon('ic_kanban')}</ListItemIconStyle>

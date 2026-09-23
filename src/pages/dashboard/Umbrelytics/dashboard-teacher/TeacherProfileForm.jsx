@@ -14,6 +14,10 @@ import { Formik, Form } from 'formik'
 import * as Yup from 'yup'
 import axios from 'axios'
 
+const TOOL_API = process.env.REACT_APP_TOOL_API_URL || 'http://localhost:3000'
+const WEBSITE_API =
+  process.env.REACT_APP_API_BASE_URL || 'http://localhost:4000'
+
 const validationSchema = Yup.object().shape({
   teacherName: Yup.string().required('Teacher name is required'),
   email: Yup.string().email('Invalid email').required('Email is required'),
@@ -39,13 +43,11 @@ export default function TeacherProfileForm({ teacherId, isUmblptool = false }) {
 
       if (isUmblptool) {
         // Fetch from UMBLPTOOL
-        response = await axios.get(
-          `http://localhost:3000/api/teachers/${teacherId}`,
-        )
+        response = await axios.get(`${TOOL_API}/api/teachers/${teacherId}`)
       } else {
         // Fetch from Umbrelytics
         response = await axios.get(
-          `http://localhost:4000/webservice/get-teacher-details-for-editing/${teacherId}`,
+          `${WEBSITE_API}/webservice/get-teacher-details-for-editing/${teacherId}`,
         )
       }
 
@@ -84,16 +86,10 @@ export default function TeacherProfileForm({ teacherId, isUmblptool = false }) {
 
       if (isUmblptool) {
         // Update in UMBLPTOOL
-        await axios.put(
-          `http://localhost:3000/api/teachers/${teacherId}`,
-          submitData,
-        )
+        await axios.put(`${TOOL_API}/api/teachers/${teacherId}`, submitData)
       } else {
         // Update in Umbrelytics (triggers sync)
-        await axios.put(
-          `http://localhost:4000/api/teachers/edit-teacher`,
-          submitData,
-        )
+        await axios.put(`${WEBSITE_API}/api/teachers/edit-teacher`, submitData)
       }
 
       setMessage({

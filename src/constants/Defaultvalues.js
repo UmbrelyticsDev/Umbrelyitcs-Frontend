@@ -1,7 +1,9 @@
 // export const REST_API_END_POINT = "http://localhost:4000/webservice/";
-export const REST_API_END_POINT = 'http://localhost:4000/webservice/'
+export const REST_API_END_POINT = `${
+  process.env.REACT_APP_API_BASE_URL || 'http://localhost:4000'
+}/webservice/`
 
-export const JWT_SECRET = '3f34d7hjjjdgt876'
+export const JWT_SECRET = process.env.JWT_SECRET
 
 export const permissons = [
   { id: 1, action: 'Add School' },
