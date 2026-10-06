@@ -177,7 +177,8 @@ function AuthProvider({ children }) {
     } else if (user.user_type === 3) {
       navigate(PATH_DASHBOARD.general.dashboardHOD)
       window.location.reload()
-    } else if (user.user_type === 4) {
+    } else if (user.user_type === 4 || user.user_type === 5) {
+      // 4 = school teacher, 5 = independent teacher — both land on the teacher dashboard
       navigate(PATH_DASHBOARD.general.dashboardTeacher)
       window.location.reload()
     }
@@ -199,6 +200,12 @@ function AuthProvider({ children }) {
         user,
       },
     })
+  }
+
+  const registerIndependent = async (payload) => {
+    // baseURL already includes /webservice, so this hits POST /webservice/register
+    const response = await axiosInstance.post('register', payload)
+    return response.data // { status, message }
   }
 
   const logout = async () => {
@@ -240,6 +247,7 @@ function AuthProvider({ children }) {
         login,
         logout,
         register,
+        registerIndependent,
         resetPassword,
         updateProfile,
       }}

@@ -1,26 +1,37 @@
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink } from 'react-router-dom'
 // material
-import { experimentalStyled as styled } from '@material-ui/core/styles';
-import { Box, Card, Stack, Link, Alert, Tooltip, Container, Typography, Button, Paper } from '@material-ui/core';
+import { experimentalStyled as styled } from '@material-ui/core/styles'
+import {
+  Box,
+  Card,
+  Stack,
+  Link,
+  Alert,
+  Tooltip,
+  Container,
+  Typography,
+  Button,
+  Paper,
+} from '@material-ui/core'
 // routes
-import { PATH_AUTH } from '../../routes/paths';
+import { PATH_AUTH } from '../../routes/paths'
 // hooks
-import useAuth from '../../hooks/useAuth';
+import useAuth from '../../hooks/useAuth'
 // layouts
-import AuthLayout from '../../layouts/AuthLayout';
+import AuthLayout from '../../layouts/AuthLayout'
 // components
-import Page from '../../components/Page';
-import { MHidden } from '../../components/@material-extend';
-import { LoginForm } from '../../components/authentication/login';
-import AuthFirebaseSocials from '../../components/authentication/AuthFirebaseSocial';
+import Page from '../../components/Page'
+import { MHidden } from '../../components/@material-extend'
+import { LoginForm } from '../../components/authentication/login'
+import AuthFirebaseSocials from '../../components/authentication/AuthFirebaseSocial'
 
 // ----------------------------------------------------------------------
 
 const RootStyle = styled(Page)(({ theme }) => ({
   [theme.breakpoints.up('md')]: {
-    display: 'flex'
-  }
-}));
+    display: 'flex',
+  },
+}))
 
 const SectionStyle = styled(Card)(({ theme }) => ({
   width: '100%',
@@ -28,8 +39,8 @@ const SectionStyle = styled(Card)(({ theme }) => ({
   display: 'flex',
   flexDirection: 'column',
   justifyContent: 'center',
-  margin: theme.spacing(2, 0, 2, 2)
-}));
+  margin: theme.spacing(2, 0, 2, 2),
+}))
 
 const ContentStyle = styled('div')(({ theme }) => ({
   maxWidth: 480,
@@ -39,20 +50,20 @@ const ContentStyle = styled('div')(({ theme }) => ({
   flexDirection: 'column',
   justifyContent: 'center',
   // padding: theme.spacing(12, 0)
-}));
+}))
 
 // ----------------------------------------------------------------------
 
 export default function Login() {
-  const { method, login } = useAuth();
+  const { method, login } = useAuth()
 
   const handleLoginAuth0 = async () => {
     try {
-      await login();
+      await login()
     } catch (error) {
-      console.error(error);
+      console.error(error)
     }
-  };
+  }
 
   return (
     <RootStyle title="Login  | Umbrelytics ">
@@ -74,13 +85,19 @@ export default function Login() {
 
       <Container maxWidth="sm">
         <ContentStyle>
-          <Card variant='outlined' sx={{p:3,borderRadius:'15px'}}>
-            <Stack direction="row" alignItems="center" sx={{ mb: 5,textAlign:'center' }}>
+          <Card variant="outlined" sx={{ p: 3, borderRadius: '15px' }}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              sx={{ mb: 5, textAlign: 'center' }}
+            >
               <Box sx={{ flexGrow: 1 }}>
                 <Typography variant="h4" gutterBottom>
-                  Sign into Umbrelytics 
+                  Sign into Umbrelytics
                 </Typography>
-                <Typography sx={{ color: 'text.secondary' }}>Enter your details below.</Typography>
+                <Typography sx={{ color: 'text.secondary' }}>
+                  Enter your details below.
+                </Typography>
               </Box>
 
               {/* <Tooltip title={method}>
@@ -97,23 +114,34 @@ export default function Login() {
             {method !== 'auth0' ? (
               <LoginForm />
             ) : (
-              <Button fullWidth size="large" type="submit" variant="contained" onClick={handleLoginAuth0}>
+              <Button
+                fullWidth
+                size="large"
+                type="submit"
+                variant="contained"
+                onClick={handleLoginAuth0}
+              >
                 Login
               </Button>
-              
             )}
 
-            {/* <MHidden width="smUp">
-              <Typography variant="body2" align="center" sx={{ mt: 3 }}>
-                Don’t have an account?&nbsp;
-                <Link variant="subtitle2" component={RouterLink} to={PATH_AUTH.register}>
-                  Get started
-                </Link>
-              </Typography>
-            </MHidden> */}
+            {
+              <MHidden width="smUp">
+                <Typography variant="body2" align="center" sx={{ mt: 3 }}>
+                  Don’t have an account?&nbsp;
+                  <Link
+                    variant="subtitle2"
+                    component={RouterLink}
+                    to={PATH_AUTH.register}
+                  >
+                    Get started
+                  </Link>
+                </Typography>
+              </MHidden>
+            }
           </Card>
         </ContentStyle>
       </Container>
     </RootStyle>
-  );
+  )
 }

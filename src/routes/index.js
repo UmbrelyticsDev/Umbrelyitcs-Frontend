@@ -59,7 +59,7 @@ export default function Router() {
           path: 'register',
           element: (
             <GuestGuard>
-              <Register />
+              <RegisterIndependent />
             </GuestGuard>
           ),
         },
@@ -320,6 +320,9 @@ export default function Router() {
 const Login = Loadable(lazy(() => import('../pages/authentication/Login')))
 const Register = Loadable(
   lazy(() => import('../pages/authentication/Register')),
+)
+const RegisterIndependent = Loadable(
+  lazy(() => import('../pages/authentication/RegisterIndependent')),
 )
 const ResetPassword = Loadable(
   lazy(() => import('../pages/authentication/ResetPassword')),

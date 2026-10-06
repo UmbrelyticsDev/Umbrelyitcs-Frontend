@@ -129,9 +129,14 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
   }
 
   useEffect(() => {
-    fetchSchoolById()
-    fetchTeacherDataById()
-    fetchHodDataById()
+    if (user_type === 2) {
+      fetchSchoolById()
+    } else if (user_type === 3) {
+      fetchHodDataById()
+    } else if (user_type === 4 || user_type === 5) {
+      fetchTeacherDataById()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -150,6 +155,30 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
     }
   }
 
+  const displayName =
+    user_type === 1
+      ? 'Umbrelytics'
+      : user_type === 2
+      ? singleSchoolData?.school_name
+      : user_type === 3
+      ? hodData?.name || ''
+      : user_type === 4 || user_type === 5
+      ? teacherData?.name || ''
+      : 'Loading....'
+
+  const displayRole =
+    user_type === 1
+      ? 'Super Admin'
+      : user_type === 2
+      ? singleSchoolData?.school_email
+      : user_type === 3
+      ? 'HOD'
+      : user_type === 4
+      ? 'Teacher'
+      : user_type === 5
+      ? 'Independent Teacher'
+      : 'Loading....'
+
   const renderContent = (
     <Scrollbar
       sx={{
@@ -166,23 +195,7 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
           <AccountStyle>
             <MyAvatar image={image} />
             <Box sx={{ ml: 2 }}>
-              <Tooltip
-                title={
-                  user_type === 1
-                    ? 'Umbrelytics'
-                    : user_type === 2
-                    ? singleSchoolData?.school_name
-                    : user_type === 3
-                    ? hodData
-                      ? hodData.name
-                      : ''
-                    : user_type === 4
-                    ? teacherData
-                      ? teacherData.name
-                      : ''
-                    : 'Loading....'
-                }
-              >
+              <Tooltip title={displayName || 'Loading....'}>
                 <Typography
                   variant="subtitle2"
                   sx={{
@@ -194,34 +207,10 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
                     cursor: 'pointer',
                   }}
                 >
-                  {user_type === 1
-                    ? 'Umbrelytics'
-                    : user_type === 2
-                    ? singleSchoolData?.school_name
-                    : user_type === 3
-                    ? hodData
-                      ? hodData.name
-                      : ''
-                    : user_type === 4
-                    ? teacherData
-                      ? teacherData.name
-                      : ''
-                    : 'Loading....'}
+                  {displayName || 'Loading....'}
                 </Typography>
               </Tooltip>
-              <Tooltip
-                title={
-                  user_type === 1
-                    ? 'Super Admin'
-                    : user_type === 2
-                    ? singleSchoolData?.school_email
-                    : user_type === 3
-                    ? 'HOD'
-                    : user_type === 4
-                    ? 'Teacher '
-                    : 'Loading....'
-                }
-              >
+              <Tooltip title={displayRole}>
                 <Typography
                   variant="body2"
                   sx={{
@@ -233,15 +222,7 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
                     cursor: 'pointer',
                   }}
                 >
-                  {user_type === 1
-                    ? 'Super Admin'
-                    : user_type === 2
-                    ? singleSchoolData?.school_email
-                    : user_type === 3
-                    ? 'HOD '
-                    : user_type === 4
-                    ? 'Teacher '
-                    : 'Loading....'}
+                  {displayRole}
                 </Typography>
               </Tooltip>
             </Box>
@@ -252,7 +233,7 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
       <NavSection navConfig={sidebarConfig} />
 
       {/* Teaching Philosophy - styled as a nav item */}
-      {user_type === 4 && (
+      {(user_type === 4 || user_type === 5) && (
         <ListItemStyle
           onClick={() => setPhilosophyModalOpen(true)}
           sx={{ cursor: 'pointer' }}
@@ -263,7 +244,7 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
       )}
 
       {/* Lesson Planning - styled as a nav item */}
-      {user_type === 4 && (
+      {(user_type === 4 || user_type === 5) && (
         <ListItemStyle
           onClick={() =>
             window.open(

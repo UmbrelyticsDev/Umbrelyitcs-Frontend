@@ -245,7 +245,7 @@ export default function AddTeacherForm({
         } else if (response.data.status == 1) {
           window.location.reload()
           enqueueSnackbar(
-            user_type !== 4
+            user_type !== 4 && user_type !== 5
               ? `Teacher ${hodEditId ? 'Updated' : 'Added'} Successfully`
               : 'Profile Updated Succesfully',
             { variant: 'success' },
@@ -372,7 +372,10 @@ export default function AddTeacherForm({
                 />
               </Box>
 
-              <Paper variant={user_type !== 4 ? '' : 'outlined'} sx={{ p: 3 }}>
+              <Paper
+                variant={user_type === 4 || user_type === 5 ? 'outlined' : ''}
+                sx={{ p: 3 }}
+              >
                 <Stack
                   direction={{ xs: 'column', sm: 'column', md: 'column' }}
                   spacing={{ xs: 2, sm: 2, md: 2 }}
@@ -545,7 +548,7 @@ export default function AddTeacherForm({
                 </Stack>
 
                 {/* NEW: Teaching Philosophy Field */}
-                {tempEditId && (
+                {(tempEditId || user_type === 4 || user_type === 5) && (
                   <Stack
                     direction={{ xs: 'column', sm: 'column', md: 'column' }}
                     sx={{ mt: 2.5 }}
@@ -673,10 +676,12 @@ export default function AddTeacherForm({
                   variant="contained"
                   loading={isSubmitting}
                   loadingIndicator={
-                    user_type !== 4 ? 'Adding...' : 'Updating...'
+                    user_type !== 4 && user_type !== 5
+                      ? 'Adding...'
+                      : 'Updating...'
                   }
                 >
-                  {user_type !== 4
+                  {user_type !== 4 && user_type !== 5
                     ? `${hodEditId ? 'Update' : 'Add'} Teacher`
                     : 'Update Profile'}
                 </LoadingButton>
@@ -691,7 +696,7 @@ export default function AddTeacherForm({
                       ? setTeacher(false)
                       : user_type === 3
                       ? setTeacher(false)
-                      : user_type === 4
+                      : user_type === 4 || user_type === 5
                       ? handleGoBack()
                       : ''
                   }

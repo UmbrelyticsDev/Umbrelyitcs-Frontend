@@ -96,7 +96,7 @@ const sidebarConfig = [
           ]
         : []),
 
-      ...(user === 4
+      ...(user === 4 || user === 5
         ? [
             {
               title: 'Dashboard',
@@ -108,11 +108,17 @@ const sidebarConfig = [
               path: PATH_DASHBOARD.general.teacherDetails,
               icon: <Person />,
             },
-            {
-              title: 'Class Listing',
-              path: PATH_DASHBOARD.general.departmentdetails,
-              icon: <School />,
-            },
+            // Class Listing: school teachers only for now — independents excluded
+            // (kept here for when we extend it to independents later).
+            ...(user === 4
+              ? [
+                  {
+                    title: 'Class Listing',
+                    path: PATH_DASHBOARD.general.departmentdetails,
+                    icon: <School />,
+                  },
+                ]
+              : []),
             {
               title: 'Timetable',
               path: PATH_DASHBOARD.general.teacherTimetable,

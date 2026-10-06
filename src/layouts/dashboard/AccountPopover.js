@@ -137,9 +137,14 @@ export default function AccountPopover() {
   }
 
   useEffect(() => {
-    fetchSchoolById()
-    fetchTeacherDataById()
-    fetchHodDataById()
+    if (user_type === 2) {
+      fetchSchoolById()
+    } else if (user_type === 3) {
+      fetchHodDataById()
+    } else if (user_type === 4 || user_type === 5) {
+      fetchTeacherDataById()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleOpen = () => {
@@ -171,7 +176,32 @@ export default function AccountPopover() {
   }
 
   // Choose which menu options to show
-  const menuOptions = user_type === 4 ? MENU_OPTIONS_WITH_PICTURE : MENU_OPTIONS
+  const menuOptions =
+    user_type === 4 || user_type === 5
+      ? MENU_OPTIONS_WITH_PICTURE
+      : MENU_OPTIONS
+
+  const displayName =
+    user_type === 1
+      ? 'Umbrelytics'
+      : user_type === 2
+      ? singleSchoolData?.school_name
+      : user_type === 3
+      ? hodData?.name
+      : user_type === 4 || user_type === 5
+      ? teacherData?.name
+      : 'Loading....'
+
+  const displayEmail =
+    user_type === 1
+      ? 'Super Admin'
+      : user_type === 2
+      ? singleSchoolData?.school_email
+      : user_type === 3
+      ? hodData?.email
+      : user_type === 4 || user_type === 5
+      ? teacherData?.email
+      : 'Loading....'
 
   return (
     <>
@@ -205,54 +235,14 @@ export default function AccountPopover() {
         sx={{ width: 220 }}
       >
         <Box sx={{ my: 1.5, px: 2.5 }}>
-          <Tooltip
-            title={
-              user_type === 1
-                ? 'Umbrelytics'
-                : user_type === 2
-                ? singleSchoolData?.school_name
-                : user_type === 3
-                ? hodData?.name
-                : user_type === 4
-                ? teacherData?.name
-                : 'Loading....'
-            }
-          >
+          <Tooltip title={displayName || 'Loading....'}>
             <Typography variant="subtitle1" noWrap>
-              {user_type === 1
-                ? 'Umbrelytics'
-                : user_type === 2
-                ? singleSchoolData?.school_name
-                : user_type === 3
-                ? hodData?.name
-                : user_type === 4
-                ? teacherData?.name
-                : 'Loading....'}
+              {displayName || 'Loading....'}
             </Typography>
           </Tooltip>
-          <Tooltip
-            title={
-              user_type === 1
-                ? 'Super Admin'
-                : user_type === 2
-                ? singleSchoolData?.school_email
-                : user_type === 3
-                ? hodData?.email
-                : user_type === 4
-                ? teacherData?.email
-                : 'Loading....'
-            }
-          >
+          <Tooltip title={displayEmail || ''}>
             <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>
-              {user_type === 1
-                ? 'Super Admin'
-                : user_type === 2
-                ? singleSchoolData?.school_email
-                : user_type === 3
-                ? hodData?.email
-                : user_type === 4
-                ? teacherData?.email
-                : 'Loading....'}
+              {displayEmail}
             </Typography>
           </Tooltip>
         </Box>
