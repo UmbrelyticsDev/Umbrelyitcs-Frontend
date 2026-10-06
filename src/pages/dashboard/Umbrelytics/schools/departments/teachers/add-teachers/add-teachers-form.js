@@ -93,6 +93,7 @@ export default function AddTeacherForm({
   const [subjectClasses, setSubjectClasses] = useState({})
   const [schoolData, setSchoolData] = useState(null)
   const [classesLoading, setClassesLoading] = useState(false)
+  const [toolClasses, setToolClasses] = useState([])
 
   useEffect(() => {
     if (user_type === 4) {
