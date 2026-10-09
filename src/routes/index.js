@@ -148,6 +148,7 @@ export default function Router() {
         },
         { path: 'schools/add-school', element: <AddSchool /> }, // this is add school form in super admin
         { path: 'schools/edit-school/:id', element: <AddSchool /> }, // this is add school form in super admin
+        { path: 'schools/timetable', element: <SchoolTimetable /> },
         {
           path: 'analytics',
           element: <GeneralAnalytics />,
@@ -463,6 +464,12 @@ const AddSchool = Loadable(
     import(
       '../pages/dashboard/Umbrelytics/schools/school-listing/add-school/add-school'
     ),
+  ),
+)
+
+const SchoolTimetable = Loadable(
+  lazy(() =>
+    import('../pages/dashboard/Umbrelytics/schools/timetable/SchoolTimetable'),
   ),
 )
 const GeneralEcommerce = Loadable(

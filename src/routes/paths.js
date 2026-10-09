@@ -52,6 +52,7 @@ export const PATH_DASHBOARD = {
     department: path(ROOTS_DASHBOARD, '/schools/department'),
     gradeListing: path(ROOTS_DASHBOARD, '/schools/department/grade-listing'),
     subjects: path(ROOTS_DASHBOARD, '/schools/department/subject-listing'),
+    schoolTimetable: path(ROOTS_DASHBOARD, '/schools/timetable'),
     Departmentsubjects: path(
       ROOTS_DASHBOARD,
       '/schools/department/department-subject-listing',
