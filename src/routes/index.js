@@ -91,6 +91,8 @@ export default function Router() {
         { path: 'teacher-dashboard', element: <DashboardTeacher /> },
         { path: 'analytics', element: <DashboardAnalytics /> },
         { path: 'teacher-timetable', element: <TeacherTimetable /> },
+        { path: 'syllabuses', element: <Syllabuses /> },
+        { path: 'action-research', element: <TeacherActionResearch /> },
         // { path: '/', element: <Navigate to="/dashboard/app" replace /> },
         // { path: 'app', element: <GeneralApp /> },
         { path: 'ecommerce', element: <GeneralEcommerce /> },
@@ -98,7 +100,7 @@ export default function Router() {
         { path: 'school-details', element: <SchoolListing /> }, //Listing page of school admin login
         { path: 'school-details/profile', element: <AddSchool /> }, // this is the school update profile in school admin login
         { path: 'hod-details/profile', element: <AddSchool /> }, // this is the hod update profile in school hod login
-        { path: 'teacher-details/profile', element: <AddSchool /> }, // this is the teacher update profile in teacher login
+        { path: 'teacher-details', element: <TeacherDetailsView /> },
         {
           path: 'schools/department',
           element: <TabDepartmentAnalyticsListing />,
@@ -121,7 +123,7 @@ export default function Router() {
           path: 'schools/department/teacher-listing',
           element: <TeacherListing />,
         },
-        { path: 'teacher-details', element: <AddSchool /> },
+        { path: 'teacher-details/profile', element: <AddSchool /> },
         {
           path: 'schools/department/grade-details/teacher-subject-listing',
           element: <TeacherSubjectListing />,
@@ -363,6 +365,26 @@ const DashboardAnalytics = Loadable(
     ),
   ),
 )
+const Syllabuses = Loadable(
+  lazy(() =>
+    import('../pages/dashboard/Umbrelytics/dashboard-teacher/Syllabuses'),
+  ),
+)
+const TeacherActionResearch = Loadable(
+  lazy(() =>
+    import(
+      '../pages/dashboard/Umbrelytics/dashboard-teacher/TeacherActionResearch'
+    ),
+  ),
+)
+const TeacherDetailsView = Loadable(
+  lazy(() =>
+    import(
+      '../pages/dashboard/Umbrelytics/dashboard-teacher/TeacherDetailsView'
+    ),
+  ),
+)
+
 const TeacherTimetable = Loadable(
   lazy(() =>
     import('../pages/dashboard/Umbrelytics/dashboard-teacher/TeacherTimetable'),

@@ -33,6 +33,8 @@ import { useSnackbar } from 'notistack'
 import Page from '../../../../components/Page'
 import toolAxios from 'src/_apis_/toolAxios'
 import { useSearchParams } from 'react-router-dom'
+import TimetableImportModal from './TimetableImportModal'
+
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
 const EMPTY_ENTRY = {
@@ -63,6 +65,9 @@ const trimTime = (t) => (t ? t.slice(0, 5) : '')
 export default function TeacherTimetable() {
   const { enqueueSnackbar } = useSnackbar()
 
+  const user_type = JSON.parse(localStorage.getItem('user_type'))
+  const canEdit = user_type === 5 // independents edit; school-linked teachers are read-only
+
   const [timetable, setTimetable] = useState([])
   const [classes, setClasses] = useState([])
   const [sessionConfig, setSessionConfig] = useState(null)
@@ -78,6 +83,9 @@ export default function TeacherTimetable() {
   const [classDialog, setClassDialog] = useState(false)
   const [editingClass, setEditingClass] = useState(null)
   const [classForm, setClassForm] = useState(EMPTY_CLASS)
+
+  // Timetable import dialog
+  const [importOpen, setImportOpen] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -269,23 +277,32 @@ export default function TeacherTimetable() {
               Manage your weekly class schedule
             </Typography>
           </Box>
-          <Stack direction="row" spacing={1.5}>
-            <Button
-              variant="outlined"
-              startIcon={<SchoolIcon />}
-              onClick={() => setClassDialog(true)}
-            >
-              Manage Classes
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={openAddEntry}
-              sx={{ color: '#fff' }}
-            >
-              Add to Schedule
-            </Button>
-          </Stack>
+          {canEdit && (
+            <Stack direction="row" spacing={1.5}>
+              <Button
+                variant="outlined"
+                startIcon={<CalendarIcon />}
+                onClick={() => setImportOpen(true)}
+              >
+                Import Excel
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<SchoolIcon />}
+                onClick={() => setClassDialog(true)}
+              >
+                Manage Classes
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={openAddEntry}
+                sx={{ color: '#fff' }}
+              >
+                Add to Schedule
+              </Button>
+            </Stack>
+          )}
         </Stack>
 
         {/* Weekly grid */}
@@ -367,22 +384,24 @@ export default function TeacherTimetable() {
                               {entry.notes}
                             </Typography>
                           )}
-                          <Stack direction="row" spacing={0.5} sx={{ mt: 1 }}>
-                            <IconButton
-                              size="small"
-                              color="primary"
-                              onClick={() => openEditEntry(entry)}
-                            >
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => deleteEntry(entry.id)}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Stack>
+                          {canEdit && (
+                            <Stack direction="row" spacing={0.5} sx={{ mt: 1 }}>
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={() => openEditEntry(entry)}
+                              >
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => deleteEntry(entry.id)}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Stack>
+                          )}
                         </Paper>
                       ))}
                     </Stack>
@@ -739,6 +758,12 @@ export default function TeacherTimetable() {
           )}
         </DialogContent>
       </Dialog>
+      {/* ---------- Excel Import ---------- */}
+      <TimetableImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={fetchData}
+      />
     </Page>
   )
 }

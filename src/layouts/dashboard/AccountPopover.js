@@ -64,9 +64,14 @@ const MENU_OPTIONS = [
 const MENU_OPTIONS_WITH_PICTURE = [
   ...MENU_OPTIONS,
   {
+    label: 'Update Profile',
+    icon: personFill,
+    linkTo: '/dashboard/teacher-details/profile',
+  },
+  {
     label: 'Edit Profile Picture',
     icon: imageFill,
-    action: 'edit-picture', // Special action instead of linkTo
+    action: 'edit-picture',
   },
 ]
 

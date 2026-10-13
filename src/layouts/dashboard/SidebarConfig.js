@@ -134,6 +134,16 @@ const sidebarConfig = [
               path: PATH_DASHBOARD.general.analytics,
               icon: ICONS.analytics,
             },
+            {
+              title: 'Syllabuses',
+              path: '/dashboard/syllabuses',
+              icon: ICONS.blog,
+            },
+            {
+              title: 'Action Research',
+              path: '/dashboard/action-research',
+              icon: ICONS.kanban,
+            },
           ]
         : []),
     ],

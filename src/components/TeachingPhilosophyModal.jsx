@@ -91,6 +91,8 @@ export default function TeachingPhilosophyModal({ open, onClose, teacherId }) {
             multiline
             rows={5}
             value={philosophy}
+            inputProps={{ maxLength: 5000 }}
+            helperText={`${philosophy.length}/5000`}
             onChange={(e) => setPhilosophy(e.target.value)}
           />
         )}

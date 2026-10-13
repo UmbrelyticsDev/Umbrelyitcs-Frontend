@@ -49,6 +49,8 @@ import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
 import { storage } from 'src/firebase/Constant'
 import { Link as RouterLink } from 'react-router-dom'
 import toolAxios from 'src/_apis_/toolAxios'
+import lockFill from '@iconify/icons-eva/lock-fill'
+import ChangePasswordModal from 'src/components/ChangePasswordModal'
 
 // utils
 
@@ -89,11 +91,15 @@ export default function AddTeacherForm({
   const user = JSON.parse(localStorage.getItem('user'))
 
   const hodEditId = tempEditId || user.teacherId
+  // Add mode = no existing teacher id. Password is only set during creation;
+  // once set it is stored hashed, so there is no edit-password field here.
+  const isAddMode = !hodEditId
   const theDeparmentId = departmentId || user.departmentId
   const [subjectClasses, setSubjectClasses] = useState({})
   const [schoolData, setSchoolData] = useState(null)
   const [classesLoading, setClassesLoading] = useState(false)
   const [toolClasses, setToolClasses] = useState([])
+  const [pwModalOpen, setPwModalOpen] = useState(false)
 
   useEffect(() => {
     if (user_type === 4) {
@@ -162,7 +168,11 @@ export default function AddTeacherForm({
       formik.setValues({
         teacherName: data.name || '',
         avatarUrl: data.image || null,
-        password: data.password || '',
+        // Never load the stored (hashed) password into the form. In edit mode
+        // this stays empty, so EditTeacher's `if (values.password)` is false
+        // and the password is left untouched — password changes go through the
+        // dedicated Change Password flow instead.
+        password: '',
         email: data.email || '',
         phone: data.phoneNumber || '',
         subjects: assignedSubject.length ? assignedSubject : [],
@@ -199,7 +209,11 @@ export default function AddTeacherForm({
           return /[a-zA-Z]/.test(beforeAtSymbol)
         },
       ),
-    password: Yup.string().required('Password is required'),
+    // Password is only required when creating a teacher. In edit mode it is
+    // already set (and stored hashed), so there is no password field to fill.
+    password: isAddMode
+      ? Yup.string().required('Password is required')
+      : Yup.string(),
     phone: Yup.string()
       .required('Phone Number is required')
       .matches(
@@ -213,7 +227,12 @@ export default function AddTeacherForm({
   const formik = useFormik({
     // enableReinitialize:true,
     initialValues: {
-      teacherName: data ? data.name : '',
+      // Always a defined string so the Teacher Name input mounts controlled.
+      // (`data` starts as [], which is truthy, so `data.name` would be
+      // undefined here — that flip to a string later is what triggered the
+      // "uncontrolled to controlled" warning.) The setValues effect populates
+      // this from `data` once the teacher record loads.
+      teacherName: '',
       avatarUrl: null,
       password: '',
       email: '',
@@ -405,14 +424,21 @@ export default function AddTeacherForm({
                     helperText={touched.email && errors.email}
                     disabled={tempEditId ? false : deptLimit}
                   />
-                  <CopyClipboard
-                    label="Teacher Password"
-                    placeholder="Teacher Password"
-                    value={values.password}
-                    onChange={(e) => setFieldValue('password', e.target.value)}
-                    error={Boolean(touched.password && errors.password)}
-                    helperText={touched.password && errors.password}
-                  />
+                  {/* Password is only shown when creating a teacher. In edit
+                      mode the password is already set and stored hashed, so
+                      there is no password field here. */}
+                  {isAddMode && (
+                    <CopyClipboard
+                      label="Teacher Password"
+                      placeholder="Teacher Password"
+                      value={values.password}
+                      onChange={(e) =>
+                        setFieldValue('password', e.target.value)
+                      }
+                      error={Boolean(touched.password && errors.password)}
+                      helperText={touched.password && errors.password}
+                    />
+                  )}
                   <TextField
                     fullWidth
                     label="Teacher Phone Number"
@@ -440,6 +466,22 @@ export default function AddTeacherForm({
                     helperText={touched.phone && errors.phone}
                   />
                 </Stack>
+
+                {/* Change Password — self-service, only on your own profile.
+                    Admins/HODs editing another teacher don't know that
+                    teacher's current password, so it isn't shown for them. */}
+                {(user_type === 4 || user_type === 5) && hodEditId && (
+                  <Stack direction="row" sx={{ mt: 2 }}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<Icon icon={lockFill} />}
+                      onClick={() => setPwModalOpen(true)}
+                    >
+                      Change Password
+                    </Button>
+                  </Stack>
+                )}
+
                 <Stack
                   direction={{ xs: 'column', sm: 'column', md: 'column' }}
                   sx={{ mt: 2.5 }}
@@ -709,6 +751,11 @@ export default function AddTeacherForm({
           </Grid>
         </Form>
       </FormikProvider>
+
+      <ChangePasswordModal
+        open={pwModalOpen}
+        onClose={() => setPwModalOpen(false)}
+      />
     </>
   )
 }
