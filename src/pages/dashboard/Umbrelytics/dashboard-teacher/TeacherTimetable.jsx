@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Container,
   Grid,
@@ -37,12 +37,21 @@ import TimetableImportModal from './TimetableImportModal'
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
+// Time-scaled grid density: each minute is PX_PER_MIN px tall, so a block's
+// height is proportional to its duration (a 60-min class ≈ 90px). MIN_BLOCK_PX
+// keeps very short blocks readable.
+const PX_PER_MIN = 1.5
+const MIN_BLOCK_PX = 44
+const AXIS_W = 72 // width of the left time axis
+const SNAP_MIN = 10 // drag snaps start time to this many minutes
+
 const EMPTY_ENTRY = {
   class_id: '',
   day_of_week: 'Monday',
   start_time: '',
   end_time: '',
   notes: '',
+  session_type: 'double',
 }
 
 const EMPTY_CLASS = {
@@ -52,8 +61,8 @@ const EMPTY_CLASS = {
   student_count: 25,
   room: '',
   proficiency: 'Mixed proficiency',
-  standard_session_length: 40,
-  session_type: 'single',
+  standard_session_length: 60,
+  session_type: 'double',
   academic_year: new Date().getFullYear(),
   term: 'Term 1',
   class_time: '9:00 AM',
@@ -61,6 +70,20 @@ const EMPTY_CLASS = {
 
 // TIME (HH:MM:SS) from DB -> HH:MM for the <input type="time">
 const trimTime = (t) => (t ? t.slice(0, 5) : '')
+
+// "HH:MM[:SS]" -> minutes since midnight
+const toMinutes = (t) => {
+  if (!t) return 0
+  const [h, m] = String(t).slice(0, 5).split(':').map(Number)
+  return h * 60 + m
+}
+// minutes since midnight -> "HH:MM"
+const fmtTime = (mins) =>
+  `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(
+    mins % 60,
+  ).padStart(2, '0')}`
+const fmtHour = (h) => `${String(h).padStart(2, '0')}:00`
+const multiplierFor = (t) => (t === 'double' ? 2 : t === 'triple' ? 3 : 1)
 
 export default function TeacherTimetable() {
   const { enqueueSnackbar } = useSnackbar()
@@ -87,6 +110,12 @@ export default function TeacherTimetable() {
   // Timetable import dialog
   const [importOpen, setImportOpen] = useState(false)
 
+  // Drag-to-move state
+  const gridBodyRef = useRef(null)
+  const dragRef = useRef(null)
+  const geomRef = useRef({ rangeStartMin: 0, rangeEndMin: 0 })
+  const [drag, setDrag] = useState(null)
+
   useEffect(() => {
     fetchData()
   }, [])
@@ -107,6 +136,28 @@ export default function TeacherTimetable() {
     searchParams.delete('editClass')
     setSearchParams(searchParams, { replace: true })
   }, [classes, searchParams])
+
+  // Auto-fill end time from start + duration (single/double/triple). Custom
+  // leaves the end time to the user.
+  useEffect(() => {
+    if (!entryDialog) return
+    if (entryForm.session_type === 'custom') return
+    if (!entryForm.start_time) return
+    const classId = editingEntry ? editingEntry.class_id : entryForm.class_id
+    const end = fmtTime(
+      toMinutes(entryForm.start_time) +
+        multiplierFor(entryForm.session_type) * getBaseLen(classId),
+    )
+    if (end !== entryForm.end_time) {
+      setEntryForm((f) => ({ ...f, end_time: end }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    entryForm.start_time,
+    entryForm.session_type,
+    entryForm.class_id,
+    entryDialog,
+  ])
 
   const fetchData = async () => {
     try {
@@ -132,10 +183,30 @@ export default function TeacherTimetable() {
       .filter((e) => e.day_of_week === day)
       .sort((a, b) => a.start_time.localeCompare(b.start_time))
 
+  // Base session length for a class — same value the lesson planner uses, so
+  // single/double/triple stay consistent across both.
+  const getBaseLen = (classId) => {
+    const c = classes.find((x) => String(x.id) === String(classId))
+    return (
+      c?.standard_session_length || sessionConfig?.standard_session_length || 45
+    )
+  }
+
   // ---------- Schedule entry handlers ----------
   const openAddEntry = () => {
     setEditingEntry(null)
     setEntryForm(EMPTY_ENTRY)
+    setEntryDialog(true)
+  }
+
+  // Open the add dialog pre-set to a specific day/time (empty-slot click)
+  const openAddEntryAt = (day, startMin) => {
+    setEditingEntry(null)
+    setEntryForm({
+      ...EMPTY_ENTRY,
+      day_of_week: day,
+      start_time: fmtTime(startMin),
+    })
     setEntryDialog(true)
   }
 
@@ -147,22 +218,102 @@ export default function TeacherTimetable() {
       start_time: trimTime(entry.start_time),
       end_time: trimTime(entry.end_time),
       notes: entry.notes || '',
+      session_type: entry.session_type || 'double',
     })
     setEntryDialog(true)
   }
 
+  // Find the first free start time on a day that fits durationMin without
+  // overlapping an existing class, searching from preferFromMin forward, then
+  // filling any earlier gap. Returns minutes-since-midnight, or null if full.
+  const findFreeSlot = (day, durationMin, preferFromMin) => {
+    const { rangeStartMin, rangeEndMin } = geomRef.current
+    const dayEntries = timetable.filter((e) => e.day_of_week === day)
+    const fits = (startMin) => {
+      if (startMin < rangeStartMin) return false
+      if (startMin + durationMin > rangeEndMin) return false
+      return !dayEntries.some(
+        (e) =>
+          startMin < toMinutes(e.end_time) &&
+          startMin + durationMin > toMinutes(e.start_time),
+      )
+    }
+    const step = SNAP_MIN
+    for (let s = preferFromMin; s + durationMin <= rangeEndMin; s += step) {
+      if (fits(s)) return s
+    }
+    for (let s = rangeStartMin; s < preferFromMin; s += step) {
+      if (fits(s)) return s
+    }
+    return null
+  }
+
+  // Duplicate an entry immediately into the next free slot on the same day —
+  // no dialog. The user can drag or edit the copy afterward.
+  const handleDuplicateEntry = async (entry) => {
+    const durationMin = toMinutes(entry.end_time) - toMinutes(entry.start_time)
+    const day = entry.day_of_week
+    const start = findFreeSlot(day, durationMin, toMinutes(entry.end_time))
+    if (start == null) {
+      enqueueSnackbar(`No free slot to duplicate into on ${day}`, {
+        variant: 'warning',
+      })
+      return
+    }
+    try {
+      await toolAxios.post('/api/timetables', {
+        class_id: entry.class_id,
+        day_of_week: day,
+        start_time: fmtTime(start),
+        end_time: fmtTime(start + durationMin),
+        notes: entry.notes || '',
+        session_type: entry.session_type || 'double',
+      })
+      enqueueSnackbar('Class duplicated', { variant: 'success' })
+      fetchData()
+    } catch (err) {
+      enqueueSnackbar(
+        err.response?.data?.error || 'Failed to duplicate class',
+        {
+          variant: 'error',
+        },
+      )
+    }
+  }
+
   const saveEntry = async () => {
+    const classId = editingEntry ? editingEntry.class_id : entryForm.class_id
+
+    // Derive the end time for single/double/triple; validate it for custom.
+    let end_time = entryForm.end_time
+    if (entryForm.session_type !== 'custom') {
+      if (entryForm.start_time) {
+        end_time = fmtTime(
+          toMinutes(entryForm.start_time) +
+            multiplierFor(entryForm.session_type) * getBaseLen(classId),
+        )
+      }
+    } else if (
+      entryForm.start_time &&
+      end_time &&
+      toMinutes(end_time) <= toMinutes(entryForm.start_time)
+    ) {
+      enqueueSnackbar('End time must be after start time', { variant: 'error' })
+      return
+    }
+
     try {
       if (editingEntry) {
         await toolAxios.put(`/api/timetables/${editingEntry.id}`, {
           day_of_week: entryForm.day_of_week,
           start_time: entryForm.start_time,
-          end_time: entryForm.end_time,
+          end_time,
           notes: entryForm.notes,
+          session_type: entryForm.session_type,
         })
         enqueueSnackbar('Schedule updated', { variant: 'success' })
       } else {
-        await toolAxios.post('/api/timetables', entryForm)
+        await toolAxios.post('/api/timetables', { ...entryForm, end_time })
         enqueueSnackbar('Added to schedule', { variant: 'success' })
       }
       setEntryDialog(false)
@@ -202,8 +353,8 @@ export default function TeacherTimetable() {
       student_count: cls.student_count || 25,
       room: cls.room || '',
       proficiency: cls.proficiency || 'Mixed proficiency',
-      standard_session_length: cls.standard_session_length || 40,
-      session_type: cls.session_type || 'single',
+      standard_session_length: cls.standard_session_length || 60,
+      session_type: cls.session_type || 'double',
       academic_year: cls.academic_year || new Date().getFullYear(),
       term: cls.term || 'Term 1',
       class_time: cls.class_time || '9:00 AM',
@@ -248,6 +399,141 @@ export default function TeacherTimetable() {
     }
   }
 
+  // ---- Drag to move a scheduled entry ----
+  const beginDrag = (e, entry) => {
+    if (!canEdit) return
+    if (e.target.closest('button, a')) return
+    e.preventDefault()
+    const body = gridBodyRef.current
+    if (!body) return
+    const rect = body.getBoundingClientRect()
+    const { rangeStartMin } = geomRef.current
+    const es = toMinutes(entry.start_time)
+    const ee = toMinutes(entry.end_time)
+    const init = {
+      entry,
+      id: entry.id,
+      durationMin: ee - es,
+      grabOffsetMin: (e.clientY - rect.top) / PX_PER_MIN + rangeStartMin - es,
+      previewDayIndex: DAYS.indexOf(entry.day_of_week),
+      previewStartMin: es,
+      moved: false,
+      startX: e.clientX,
+      startY: e.clientY,
+      rectLeft: rect.left,
+      rectTop: rect.top,
+      colWidth: (rect.width - AXIS_W) / DAYS.length,
+    }
+    dragRef.current = init
+    setDrag(init)
+  }
+
+  const isDragging = !!drag
+  useEffect(() => {
+    if (!isDragging) return undefined
+    const onMove = (ev) => {
+      const d = dragRef.current
+      const body = gridBodyRef.current
+      if (!d || !body) return
+      const rect = body.getBoundingClientRect()
+      const { rangeStartMin, rangeEndMin } = geomRef.current
+      const colWidth = (rect.width - AXIS_W) / DAYS.length
+      const moved =
+        d.moved ||
+        Math.abs(ev.clientX - d.startX) > 4 ||
+        Math.abs(ev.clientY - d.startY) > 4
+      let dayIndex = Math.floor((ev.clientX - rect.left - AXIS_W) / colWidth)
+      dayIndex = Math.max(0, Math.min(DAYS.length - 1, dayIndex))
+      const pointerMin = (ev.clientY - rect.top) / PX_PER_MIN + rangeStartMin
+      let startMin =
+        Math.round((pointerMin - d.grabOffsetMin) / SNAP_MIN) * SNAP_MIN
+      startMin = Math.max(
+        rangeStartMin,
+        Math.min(rangeEndMin - d.durationMin, startMin),
+      )
+      const next = {
+        ...d,
+        moved,
+        previewDayIndex: dayIndex,
+        previewStartMin: startMin,
+        rectLeft: rect.left,
+        rectTop: rect.top,
+        colWidth,
+      }
+      dragRef.current = next
+      setDrag(next)
+    }
+    const onUp = () => {
+      const d = dragRef.current
+      dragRef.current = null
+      setDrag(null)
+      if (d && d.moved) finalizeDrag(d)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDragging])
+
+  const finalizeDrag = async (d) => {
+    const newDay = DAYS[d.previewDayIndex]
+    const newStart = d.previewStartMin
+    const newEnd = newStart + d.durationMin
+    const origStart = toMinutes(d.entry.start_time)
+    if (newDay === d.entry.day_of_week && newStart === origStart) return
+
+    // Client-side overlap guard (the PUT endpoint doesn't check conflicts).
+    const conflict = timetable.some(
+      (e) =>
+        e.id !== d.id &&
+        e.day_of_week === newDay &&
+        newStart < toMinutes(e.end_time) &&
+        newEnd > toMinutes(e.start_time),
+    )
+    if (conflict) {
+      enqueueSnackbar(`That time overlaps another class on ${newDay}`, {
+        variant: 'warning',
+      })
+      return
+    }
+
+    const startStr = fmtTime(newStart)
+    const endStr = fmtTime(newEnd)
+
+    // Optimistic update so the block lands immediately.
+    setTimetable((prev) =>
+      prev.map((e) =>
+        e.id === d.id
+          ? {
+              ...e,
+              day_of_week: newDay,
+              start_time: startStr,
+              end_time: endStr,
+            }
+          : e,
+      ),
+    )
+
+    try {
+      await toolAxios.put(`/api/timetables/${d.id}`, {
+        day_of_week: newDay,
+        start_time: startStr,
+        end_time: endStr,
+        notes: d.entry.notes || '',
+        session_type: d.entry.session_type || 'double',
+      })
+      enqueueSnackbar('Class moved', { variant: 'success' })
+    } catch (err) {
+      enqueueSnackbar(err.response?.data?.error || 'Failed to move class', {
+        variant: 'error',
+      })
+      fetchData() // revert to server truth
+    }
+  }
+
   if (loading) {
     return (
       <Page title="Timetable | Umbrelytics">
@@ -259,6 +545,36 @@ export default function TeacherTimetable() {
       </Page>
     )
   }
+
+  // ---- Time-scaled grid geometry ----
+  let rangeStartMin = toMinutes(sessionConfig?.school_start_time || '08:00')
+  let rangeEndMin = toMinutes(sessionConfig?.school_end_time || '18:00')
+  timetable.forEach((e) => {
+    const s = toMinutes(e.start_time)
+    const en = toMinutes(e.end_time)
+    if (s < rangeStartMin) rangeStartMin = s
+    if (en > rangeEndMin) rangeEndMin = en
+  })
+  rangeStartMin = Math.floor(rangeStartMin / 60) * 60
+  rangeEndMin = Math.ceil(rangeEndMin / 60) * 60
+  if (rangeEndMin <= rangeStartMin) rangeEndMin = rangeStartMin + 60
+  geomRef.current = { rangeStartMin, rangeEndMin }
+  const gridHeight = (rangeEndMin - rangeStartMin) * PX_PER_MIN
+  const hourMarks = []
+  for (let h = rangeStartMin / 60; h <= rangeEndMin / 60; h++) hourMarks.push(h)
+
+  // Candidate empty "add" slots (one session length apart), for click-to-add.
+  const addSlotLen = sessionConfig?.standard_session_length || 60
+  const addSlots = []
+  for (let m = rangeStartMin; m + addSlotLen <= rangeEndMin; m += addSlotLen) {
+    addSlots.push({ start: m, end: m + addSlotLen })
+  }
+
+  const entryDurationValid =
+    entryForm.session_type !== 'custom' ||
+    (entryForm.start_time &&
+      entryForm.end_time &&
+      toMinutes(entryForm.end_time) > toMinutes(entryForm.start_time))
 
   return (
     <Page title="Timetable | Umbrelytics">
@@ -305,142 +621,397 @@ export default function TeacherTimetable() {
           )}
         </Stack>
 
-        {/* Weekly grid */}
-        <Grid container spacing={2}>
-          {DAYS.map((day) => (
-            <Grid item xs={12} sm={6} md={2.4} key={day}>
-              <Card sx={{ height: '100%' }}>
+        {/* Weekly grid — time-scaled: block height ∝ duration */}
+        <Card>
+          <Box sx={{ overflowX: 'auto' }}>
+            <Box sx={{ minWidth: 760 }}>
+              {/* Header row */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  bgcolor: 'grey.50',
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                }}
+              >
                 <Box
                   sx={{
-                    px: 2,
-                    py: 1.5,
-                    background:
-                      'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    color: 'white',
+                    width: 72,
+                    flexShrink: 0,
+                    p: 1.5,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: 'text.secondary',
+                    textTransform: 'uppercase',
+                    borderRight: '1px solid',
+                    borderColor: 'divider',
                   }}
                 >
-                  <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                    {day}
-                  </Typography>
+                  Time
                 </Box>
-                <CardContent sx={{ p: 1.5 }}>
-                  {getClassesForDay(day).length === 0 ? (
+                {DAYS.map((day) => (
+                  <Box
+                    key={day}
+                    sx={{
+                      flex: 1,
+                      p: 1.5,
+                      textAlign: 'center',
+                      fontWeight: 'bold',
+                      color: 'text.primary',
+                      borderRight: '1px solid',
+                      borderColor: 'divider',
+                      '&:last-of-type': { borderRight: 'none' },
+                    }}
+                  >
+                    {day}
+                  </Box>
+                ))}
+              </Box>
+
+              {/* Body */}
+              <Box
+                ref={gridBodyRef}
+                sx={{ display: 'flex', height: gridHeight, userSelect: 'none' }}
+              >
+                {/* Time axis */}
+                <Box
+                  sx={{
+                    width: 72,
+                    flexShrink: 0,
+                    position: 'relative',
+                    bgcolor: 'grey.50',
+                    borderRight: '1px solid',
+                    borderColor: 'divider',
+                  }}
+                >
+                  {hourMarks.map((h) => (
                     <Typography
-                      variant="body2"
+                      key={h}
+                      variant="caption"
                       sx={{
-                        color: 'text.disabled',
-                        fontStyle: 'italic',
-                        py: 2,
-                        textAlign: 'center',
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        px: 1,
+                        color: 'text.secondary',
+                        fontWeight: 500,
+                        transform: 'translateY(-50%)',
+                      }}
+                      style={{ top: (h * 60 - rangeStartMin) * PX_PER_MIN }}
+                    >
+                      {fmtHour(h)}
+                    </Typography>
+                  ))}
+                </Box>
+
+                {/* Day columns */}
+                {DAYS.map((day) => {
+                  const dayEntries = getClassesForDay(day)
+                  return (
+                    <Box
+                      key={day}
+                      sx={{
+                        flex: 1,
+                        position: 'relative',
+                        borderRight: '1px solid',
+                        borderColor: 'divider',
+                        '&:last-of-type': { borderRight: 'none' },
                       }}
                     >
-                      No classes
-                    </Typography>
-                  ) : (
-                    <Stack spacing={1.5}>
-                      {getClassesForDay(day).map((entry) => (
-                        <Paper
-                          key={entry.id}
-                          variant="outlined"
-                          sx={{ p: 1.5, borderRadius: 1.5, bgcolor: 'grey.50' }}
-                        >
-                          <Typography
-                            variant="caption"
-                            sx={{ color: 'text.secondary' }}
+                      {/* Hour gridlines */}
+                      {hourMarks.map((h) => (
+                        <Box
+                          key={h}
+                          sx={{
+                            position: 'absolute',
+                            left: 0,
+                            right: 0,
+                            borderTop: '1px solid',
+                            borderColor: 'grey.100',
+                          }}
+                          style={{ top: (h * 60 - rangeStartMin) * PX_PER_MIN }}
+                        />
+                      ))}
+
+                      {/* Break bands (from session config, if any) */}
+                      {(sessionConfig?.break_times || []).map((b, i) => {
+                        const bs = toMinutes(b.start)
+                        const be = toMinutes(b.end)
+                        if (be <= rangeStartMin || bs >= rangeEndMin)
+                          return null
+                        const top =
+                          (Math.max(bs, rangeStartMin) - rangeStartMin) *
+                          PX_PER_MIN
+                        const height =
+                          (Math.min(be, rangeEndMin) -
+                            Math.max(bs, rangeStartMin)) *
+                          PX_PER_MIN
+                        return (
+                          <Box
+                            key={`break-${i}`}
+                            sx={{
+                              position: 'absolute',
+                              left: 0,
+                              right: 0,
+                              bgcolor: 'grey.100',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                            style={{ top, height }}
                           >
-                            {trimTime(entry.start_time)} -{' '}
-                            {trimTime(entry.end_time)}
-                          </Typography>
-                          <Typography
-                            variant="subtitle2"
-                            sx={{ fontWeight: 'bold' }}
-                          >
-                            {entry.class_name}
-                          </Typography>
-                          <Typography
-                            variant="caption"
-                            sx={{ display: 'block', color: 'text.secondary' }}
-                          >
-                            {entry.subject} • {entry.grade_level}
-                          </Typography>
-                          {entry.room && (
-                            <Typography
-                              variant="caption"
-                              sx={{ display: 'block', color: 'text.disabled' }}
-                            >
-                              Room: {entry.room}
-                            </Typography>
-                          )}
-                          {entry.notes && (
                             <Typography
                               variant="caption"
                               sx={{
-                                display: 'block',
                                 color: 'text.disabled',
                                 fontStyle: 'italic',
-                                mt: 0.5,
                               }}
                             >
-                              {entry.notes}
+                              {b.name || 'Break'}
                             </Typography>
-                          )}
-                          {canEdit && (
-                            <Stack direction="row" spacing={0.5} sx={{ mt: 1 }}>
-                              <IconButton
-                                size="small"
-                                color="primary"
-                                onClick={() => openEditEntry(entry)}
-                              >
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={() => deleteEntry(entry.id)}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </Stack>
-                          )}
-                        </Paper>
-                      ))}
-                    </Stack>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+                          </Box>
+                        )
+                      })}
 
-        {/* Weekly summary */}
-        <Card sx={{ mt: 3 }}>
-          <CardContent>
-            <Typography variant="subtitle1" sx={{ mb: 2 }}>
-              Weekly Summary
-            </Typography>
-            <Grid container spacing={2} sx={{ textAlign: 'center' }}>
-              {DAYS.map((day) => (
-                <Grid item xs={6} sm={2} key={day}>
-                  <Typography variant="h4" color="primary">
-                    {getClassesForDay(day).length}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                    {day}
-                  </Typography>
-                </Grid>
-              ))}
-              <Grid item xs={12} sm={2}>
-                <Typography variant="h4" sx={{ color: '#764ba2' }}>
-                  {timetable.length}
-                </Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  Total / Week
-                </Typography>
-              </Grid>
-            </Grid>
-          </CardContent>
+                      {/* Empty add-zones — only where no class sits */}
+                      {canEdit &&
+                        addSlots
+                          .filter(
+                            (slot) =>
+                              !dayEntries.some((e) => {
+                                const es = toMinutes(e.start_time)
+                                const ee = toMinutes(e.end_time)
+                                return slot.start < ee && slot.end > es
+                              }),
+                          )
+                          .map((slot) => (
+                            <Box
+                              key={`add-${day}-${slot.start}`}
+                              onClick={() => openAddEntryAt(day, slot.start)}
+                              sx={{
+                                position: 'absolute',
+                                left: 2,
+                                right: 2,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'grey.300',
+                                borderRadius: 1,
+                                cursor: 'pointer',
+                                transition: 'all .15s',
+                                '&:hover': {
+                                  bgcolor: 'grey.50',
+                                  color: 'grey.500',
+                                  border: '1px dashed',
+                                  borderColor: 'grey.300',
+                                },
+                              }}
+                              style={{
+                                top: (slot.start - rangeStartMin) * PX_PER_MIN,
+                                height: (slot.end - slot.start) * PX_PER_MIN,
+                              }}
+                              title={`Add a class on ${day} at ${fmtTime(
+                                slot.start,
+                              )}`}
+                            >
+                              +
+                            </Box>
+                          ))}
+
+                      {/* Class blocks */}
+                      {dayEntries.map((entry) => {
+                        const es = toMinutes(entry.start_time)
+                        const ee = toMinutes(entry.end_time)
+                        const top = (es - rangeStartMin) * PX_PER_MIN
+                        const height = Math.max(
+                          MIN_BLOCK_PX,
+                          (ee - es) * PX_PER_MIN,
+                        )
+                        const showSubject = height >= 72
+                        const showMeta = height >= 104
+                        const beingDragged = drag && drag.id === entry.id
+                        return (
+                          <Paper
+                            key={entry.id}
+                            variant="outlined"
+                            onPointerDown={(e) => beginDrag(e, entry)}
+                            sx={{
+                              position: 'absolute',
+                              left: 2,
+                              right: 2,
+                              zIndex: 1,
+                              p: 0.75,
+                              overflow: 'hidden',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              bgcolor: '#eef2ff',
+                              borderColor: '#c7d2fe',
+                              userSelect: 'none',
+                              cursor: canEdit ? 'grab' : 'default',
+                              opacity: beingDragged ? 0.4 : 1,
+                            }}
+                            style={{ top, height }}
+                          >
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                fontWeight: 'bold',
+                                lineHeight: 1.2,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                            >
+                              {entry.class_name}
+                            </Typography>
+                            {showSubject && (
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: 'text.secondary',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              >
+                                {entry.subject}
+                              </Typography>
+                            )}
+                            <Typography
+                              variant="caption"
+                              sx={{ color: 'text.secondary', lineHeight: 1.2 }}
+                            >
+                              {trimTime(entry.start_time)}–
+                              {trimTime(entry.end_time)}
+                            </Typography>
+                            {showMeta && entry.room && (
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: 'text.disabled',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              >
+                                Room: {entry.room}
+                              </Typography>
+                            )}
+                            {showMeta && entry.notes && (
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: 'text.disabled',
+                                  fontStyle: 'italic',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              >
+                                {entry.notes}
+                              </Typography>
+                            )}
+                            {canEdit && (
+                              <Stack
+                                direction="row"
+                                spacing={1.5}
+                                sx={{ mt: 'auto', pt: 0.25 }}
+                                onPointerDown={(e) => e.stopPropagation()}
+                              >
+                                <Typography
+                                  variant="caption"
+                                  onClick={() => openEditEntry(entry)}
+                                  sx={{
+                                    color: 'primary.main',
+                                    cursor: 'pointer',
+                                    fontWeight: 500,
+                                    '&:hover': { textDecoration: 'underline' },
+                                  }}
+                                >
+                                  Edit
+                                </Typography>
+                                <Typography
+                                  variant="caption"
+                                  onClick={() => handleDuplicateEntry(entry)}
+                                  sx={{
+                                    color: 'secondary.main',
+                                    cursor: 'pointer',
+                                    fontWeight: 500,
+                                    '&:hover': { textDecoration: 'underline' },
+                                  }}
+                                >
+                                  Duplicate
+                                </Typography>
+                                <Typography
+                                  variant="caption"
+                                  onClick={() => deleteEntry(entry.id)}
+                                  sx={{
+                                    color: 'error.main',
+                                    cursor: 'pointer',
+                                    fontWeight: 500,
+                                    '&:hover': { textDecoration: 'underline' },
+                                  }}
+                                >
+                                  Remove
+                                </Typography>
+                              </Stack>
+                            )}
+                          </Paper>
+                        )
+                      })}
+                    </Box>
+                  )
+                })}
+              </Box>
+            </Box>
+          </Box>
         </Card>
       </Container>
+
+      {/* Drag ghost — follows the pointer at the snapped target position */}
+      {drag && drag.moved && (
+        <Box
+          sx={{
+            position: 'fixed',
+            zIndex: 1300,
+            pointerEvents: 'none',
+            userSelect: 'none',
+            bgcolor: '#dbeafe',
+            border: '2px solid',
+            borderColor: 'primary.main',
+            borderRadius: 1,
+            p: 0.75,
+            overflow: 'hidden',
+            boxShadow: 4,
+          }}
+          style={{
+            left:
+              drag.rectLeft + AXIS_W + drag.previewDayIndex * drag.colWidth + 2,
+            top:
+              drag.rectTop +
+              (drag.previewStartMin - rangeStartMin) * PX_PER_MIN,
+            width: drag.colWidth - 4,
+            height: drag.durationMin * PX_PER_MIN,
+          }}
+        >
+          <Typography
+            variant="caption"
+            sx={{
+              fontWeight: 'bold',
+              display: 'block',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {drag.entry.class_name}
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            {fmtTime(drag.previewStartMin)}–
+            {fmtTime(drag.previewStartMin + drag.durationMin)}
+          </Typography>
+        </Box>
+      )}
 
       {/* ---------- Schedule Entry Dialog ---------- */}
       <Dialog
@@ -496,6 +1067,37 @@ export default function TeacherTimetable() {
               ))}
             </TextField>
 
+            {/* Duration — auto-fills end time for single/double/triple; Custom
+                lets the user set the end time directly. */}
+            <TextField
+              select
+              fullWidth
+              label="Duration"
+              value={entryForm.session_type}
+              onChange={(e) =>
+                setEntryForm({ ...entryForm, session_type: e.target.value })
+              }
+              helperText={
+                entryForm.session_type !== 'custom'
+                  ? `= ${
+                      multiplierFor(entryForm.session_type) *
+                      getBaseLen(
+                        editingEntry
+                          ? editingEntry.class_id
+                          : entryForm.class_id,
+                      )
+                    } min${
+                      entryForm.end_time ? ` · ends ${entryForm.end_time}` : ''
+                    }`
+                  : 'Set the start and end time below.'
+              }
+            >
+              <MenuItem value="single">Single Session</MenuItem>
+              <MenuItem value="double">Double Session</MenuItem>
+              <MenuItem value="triple">Triple Session</MenuItem>
+              <MenuItem value="custom">Custom</MenuItem>
+            </TextField>
+
             <Stack direction="row" spacing={2}>
               <TextField
                 fullWidth
@@ -510,9 +1112,14 @@ export default function TeacherTimetable() {
               <TextField
                 fullWidth
                 type="time"
-                label="End Time"
+                label={
+                  entryForm.session_type === 'custom'
+                    ? 'End Time'
+                    : 'End Time (auto)'
+                }
                 InputLabelProps={{ shrink: true }}
                 value={entryForm.end_time}
+                disabled={entryForm.session_type !== 'custom'}
                 onChange={(e) =>
                   setEntryForm({ ...entryForm, end_time: e.target.value })
                 }
@@ -537,7 +1144,11 @@ export default function TeacherTimetable() {
             variant="contained"
             sx={{ color: '#fff' }}
             onClick={saveEntry}
-            disabled={!editingEntry && !entryForm.class_id}
+            disabled={
+              (!editingEntry && !entryForm.class_id) ||
+              !entryForm.start_time ||
+              !entryDurationValid
+            }
           >
             {editingEntry ? 'Update' : 'Add to Schedule'}
           </Button>
@@ -639,7 +1250,7 @@ export default function TeacherTimetable() {
                 onChange={(e) =>
                   setClassForm({
                     ...classForm,
-                    standard_session_length: parseInt(e.target.value, 10) || 40,
+                    standard_session_length: parseInt(e.target.value, 10) || 60,
                   })
                 }
                 inputProps={{ min: 10, max: 120 }}
@@ -657,6 +1268,7 @@ export default function TeacherTimetable() {
               >
                 <MenuItem value="single">Single</MenuItem>
                 <MenuItem value="double">Double</MenuItem>
+                <MenuItem value="triple">Triple</MenuItem>
               </TextField>
             </Grid>
             <Grid item xs={12} sm={6}>
