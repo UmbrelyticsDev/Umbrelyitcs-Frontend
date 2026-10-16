@@ -10,6 +10,8 @@ import {
   Stack,
   Divider,
   IconButton,
+  MenuItem,
+  Chip,
   CircularProgress,
 } from '@material-ui/core'
 import { Edit as EditIcon, Delete as DeleteIcon } from '@material-ui/icons'
@@ -36,6 +38,8 @@ export default function TeacherActionResearch() {
   const [noteTitle, setNoteTitle] = useState('')
   const [noteContent, setNoteContent] = useState('')
   const [editingId, setEditingId] = useState(null)
+  const [classes, setClasses] = useState([])
+  const [noteClassId, setNoteClassId] = useState('')
 
   const [files, setFiles] = useState([])
   const [uploading, setUploading] = useState(false)
@@ -70,11 +74,18 @@ export default function TeacherActionResearch() {
       .then((r) => setResearchLessons(r.data.data || []))
       .catch((e) => console.log('Failed to load research lessons', e))
 
+  const loadClasses = () =>
+    toolAxios
+      .get('/api/timetables/classes')
+      .then((r) => setClasses(r.data.data || []))
+      .catch((e) => console.log('Failed to load classes', e))
+
   useEffect(() => {
     loadResearch()
     loadNotes()
     loadFiles()
     loadLessons()
+    loadClasses()
   }, [])
 
   const handleSave = async () => {
@@ -98,15 +109,18 @@ export default function TeacherActionResearch() {
         await toolAxios.put(`/api/teachers/research-notes/${editingId}`, {
           title: noteTitle,
           content: noteContent,
+          class_id: noteClassId || null,
         })
       } else {
         await toolAxios.post('/api/teachers/research-notes', {
           title: noteTitle,
           content: noteContent,
+          class_id: noteClassId || null,
         })
       }
       setNoteTitle('')
       setNoteContent('')
+      setNoteClassId('')
       setEditingId(null)
       loadNotes()
     } catch (e) {
@@ -118,12 +132,14 @@ export default function TeacherActionResearch() {
     setEditingId(note.id)
     setNoteTitle(note.title || '')
     setNoteContent(note.content)
+    setNoteClassId(note.class_id || '')
   }
 
   const cancelEdit = () => {
     setEditingId(null)
     setNoteTitle('')
     setNoteContent('')
+    setNoteClassId('')
   }
 
   const handleDeleteNote = async (id) => {
@@ -248,6 +264,23 @@ export default function TeacherActionResearch() {
                 onChange={(e) => setNoteContent(e.target.value)}
                 placeholder="Record a note, finding, or observation…"
               />
+              <TextField
+                select
+                label="Attach a class (optional)"
+                fullWidth
+                value={noteClassId}
+                onChange={(e) => setNoteClassId(e.target.value)}
+              >
+                <MenuItem value="">
+                  <em>No class (general note)</em>
+                </MenuItem>
+                {classes.map((c) => (
+                  <MenuItem key={c.id} value={c.id}>
+                    {c.class_name}
+                    {c.subject ? ` — ${c.subject}` : ''}
+                  </MenuItem>
+                ))}
+              </TextField>
               <Stack direction="row" spacing={1}>
                 <Button
                   variant="contained"
@@ -310,6 +343,15 @@ export default function TeacherActionResearch() {
                           {new Date(note.created_at).toLocaleDateString()}
                           {note.updated_at !== note.created_at && ' (edited)'}
                         </Typography>
+                        {note.class_name && (
+                          <Chip
+                            label={note.class_name}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                            sx={{ mt: 1 }}
+                          />
+                        )}
                       </Box>
                       <Stack direction="row" spacing={0.5}>
                         <IconButton

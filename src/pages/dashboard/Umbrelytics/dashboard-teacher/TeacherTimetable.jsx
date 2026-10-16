@@ -28,6 +28,7 @@ import {
   Close as CloseIcon,
   School as SchoolIcon,
   CalendarToday as CalendarIcon,
+  FileCopyOutlined as FileCopyIcon,
 } from '@material-ui/icons'
 import { useSnackbar } from 'notistack'
 import Page from '../../../../components/Page'
@@ -852,6 +853,25 @@ export default function TeacherTimetable() {
                             }}
                             style={{ top, height }}
                           >
+                            {canEdit && (
+                              <IconButton
+                                size="small"
+                                title="Duplicate"
+                                aria-label="Duplicate"
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onClick={() => handleDuplicateEntry(entry)}
+                                sx={{
+                                  position: 'absolute',
+                                  top: 2,
+                                  right: 2,
+                                  zIndex: 2,
+                                  color: 'secondary.main',
+                                  p: 0.25,
+                                }}
+                              >
+                                <FileCopyIcon style={{ fontSize: 16 }} />
+                              </IconButton>
+                            )}
                             <Typography
                               variant="caption"
                               sx={{
@@ -860,6 +880,7 @@ export default function TeacherTimetable() {
                                 whiteSpace: 'nowrap',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
+                                pr: 2.5,
                               }}
                             >
                               {entry.class_name}
@@ -929,18 +950,6 @@ export default function TeacherTimetable() {
                                   }}
                                 >
                                   Edit
-                                </Typography>
-                                <Typography
-                                  variant="caption"
-                                  onClick={() => handleDuplicateEntry(entry)}
-                                  sx={{
-                                    color: 'secondary.main',
-                                    cursor: 'pointer',
-                                    fontWeight: 500,
-                                    '&:hover': { textDecoration: 'underline' },
-                                  }}
-                                >
-                                  Duplicate
                                 </Typography>
                                 <Typography
                                   variant="caption"
