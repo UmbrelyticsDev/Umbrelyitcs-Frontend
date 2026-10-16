@@ -36,6 +36,10 @@ import toolAxios from 'src/_apis_/toolAxios'
 import { useSearchParams } from 'react-router-dom'
 import TimetableImportModal from './TimetableImportModal'
 
+// Base URL of the tool app (where the lesson generator lives). Set
+// REACT_APP_TOOL_URL in the website env; falls back to the local tool dev server.
+const TOOL_APP_URL = process.env.REACT_APP_TOOL_URL || 'http://localhost:3001'
+
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
 // Time-scaled grid density: each minute is PX_PER_MIN px tall, so a block's
@@ -247,6 +251,23 @@ export default function TeacherTimetable() {
       if (fits(s)) return s
     }
     return null
+  }
+
+  // Plan a lesson for this class/day — opens the tool's lesson generator in a
+  // new tab with the class and day prefilled (cross-app, so via URL params).
+  const planLesson = (entry) => {
+    const params = new URLSearchParams({
+      prefillClassId: entry.class_id ?? '',
+      prefillClassName: entry.class_name ?? '',
+      prefillSubject: entry.subject ?? '',
+      prefillDay: entry.day_of_week ?? '',
+      prefillStartTime: entry.start_time ?? '',
+    })
+    window.open(
+      `${TOOL_APP_URL}/lesson-plan-generator?${params.toString()}`,
+      '_blank',
+      'noopener,noreferrer',
+    )
   }
 
   // Duplicate an entry immediately into the next free slot on the same day —
@@ -932,39 +953,57 @@ export default function TeacherTimetable() {
                                 {entry.notes}
                               </Typography>
                             )}
-                            {canEdit && (
-                              <Stack
-                                direction="row"
-                                spacing={1.5}
-                                sx={{ mt: 'auto', pt: 0.25 }}
-                                onPointerDown={(e) => e.stopPropagation()}
+                            <Stack
+                              direction="row"
+                              spacing={1.5}
+                              sx={{ mt: 'auto', pt: 0.25 }}
+                              onPointerDown={(e) => e.stopPropagation()}
+                            >
+                              <Typography
+                                variant="caption"
+                                onClick={() => planLesson(entry)}
+                                sx={{
+                                  color: 'success.main',
+                                  cursor: 'pointer',
+                                  fontWeight: 500,
+                                  '&:hover': { textDecoration: 'underline' },
+                                }}
                               >
-                                <Typography
-                                  variant="caption"
-                                  onClick={() => openEditEntry(entry)}
-                                  sx={{
-                                    color: 'primary.main',
-                                    cursor: 'pointer',
-                                    fontWeight: 500,
-                                    '&:hover': { textDecoration: 'underline' },
-                                  }}
-                                >
-                                  Edit
-                                </Typography>
-                                <Typography
-                                  variant="caption"
-                                  onClick={() => deleteEntry(entry.id)}
-                                  sx={{
-                                    color: 'error.main',
-                                    cursor: 'pointer',
-                                    fontWeight: 500,
-                                    '&:hover': { textDecoration: 'underline' },
-                                  }}
-                                >
-                                  Remove
-                                </Typography>
-                              </Stack>
-                            )}
+                                Plan
+                              </Typography>
+                              {canEdit && (
+                                <>
+                                  <Typography
+                                    variant="caption"
+                                    onClick={() => openEditEntry(entry)}
+                                    sx={{
+                                      color: 'primary.main',
+                                      cursor: 'pointer',
+                                      fontWeight: 500,
+                                      '&:hover': {
+                                        textDecoration: 'underline',
+                                      },
+                                    }}
+                                  >
+                                    Edit
+                                  </Typography>
+                                  <Typography
+                                    variant="caption"
+                                    onClick={() => deleteEntry(entry.id)}
+                                    sx={{
+                                      color: 'error.main',
+                                      cursor: 'pointer',
+                                      fontWeight: 500,
+                                      '&:hover': {
+                                        textDecoration: 'underline',
+                                      },
+                                    }}
+                                  >
+                                    Remove
+                                  </Typography>
+                                </>
+                              )}
+                            </Stack>
                           </Paper>
                         )
                       })}

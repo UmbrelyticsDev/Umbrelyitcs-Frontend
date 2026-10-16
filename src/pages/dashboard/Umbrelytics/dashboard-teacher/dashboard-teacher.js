@@ -6,31 +6,24 @@ import {
   CircularProgress,
   Paper,
   Box,
-  Autocomplete,
-  TextField,
-  Chip,
   Card,
-  CardContent,
   Button,
   Stack,
-} from '@material-ui/core'
-import { School as SchoolIcon } from '@material-ui/icons'
-import useAuth from '../../../../hooks/useAuth'
-import Page from '../../../../components/Page'
-import DepartmentAnalyticsCarousal from '../dashboard-school/department-analytics-carousal'
-import GradeAnalyticsCarousal from '../dashboard-school/grade-analytics-carousal'
-import SubjectAnalyticsCarousal from '../dashboard-school/subject-analytics-carousal'
-import ClassAnalyticsCarousal from '../schools/departments/grades-listing/class-analytics-caroussal'
-import {
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
 } from '@material-ui/core'
+import Page from '../../../../components/Page'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { PATH_DASHBOARD } from '../../../../routes/paths'
 import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
+import toolAxios from 'src/_apis_/toolAxios'
+import TodaysClasses from 'src/components/TodaysClasses' // adjust path to where you saved it
+import RecentLessons from 'src/components/RecentLessons' // adjust path to where you saved it
+import RecentNotes from 'src/components/RecentNotes' // adjust path to where you saved it
+import NewsUpdates from 'src/components/NewsUpdates' // adjust path to where you saved it
 
 const style = {
   p: 4,
@@ -42,70 +35,27 @@ const style = {
   mt: { xs: 23, sm: 40, md: 18, lg: 18 },
 }
 
-const SORT_OPTIONS = [
-  { value: 'department', label: 'Department Analytics' },
-  { value: 'grade', label: 'Grade Analytics' },
-  { value: 'subject', label: 'Subject Analytics' },
-  { value: 'class', label: 'Class Analytics' },
-]
-
-const applySort = (selectedFilters) => {
-  if (selectedFilters.length === 0) {
-    return [
-      'DepartmentAnalyticsCarousal',
-      'GradeAnalyticsCarousal',
-      'SubjectAnalyticsCarousal',
-      'ClassAnalyticsCarousal',
-    ]
-  }
-
-  return selectedFilters
-    .map((filter) => {
-      switch (filter.value) {
-        case 'department':
-          return 'DepartmentAnalyticsCarousal'
-        case 'grade':
-          return 'GradeAnalyticsCarousal'
-        case 'subject':
-          return 'SubjectAnalyticsCarousal'
-        case 'class':
-          return 'ClassAnalyticsCarousal'
-        default:
-          return null
-      }
-    })
-    .filter(Boolean)
-}
-
 export default function DashboardTeacher() {
-  // const { user } = useAuth();
-  const [filters, setFilters] = useState([])
-  const sortedComponents = applySort(filters)
   const user_type = JSON.parse(localStorage.getItem('user_type'))
   const user = JSON.parse(localStorage.getItem('user'))
-  const [data, setData] = useState([])
   const [teacherData, setTeacherData] = useState([])
   const [classes, setClasses] = useState([])
   const [selectedClassModal, setSelectedClassModal] = useState(null)
+  const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
-    fetchDashboardData()
     fetchTeacherDataById()
     fetchTeacherClasses()
   }, [])
 
-  const fetchDashboardData = async () => {
+  const fetchTeacherDataById = async () => {
     try {
-      const res = await axios.post(`${REST_API_END_POINT}dashboard-details`, {
-        user_type: user_type,
-        teacherId: user.teacherId,
-        departmentId: user.departmentId,
-      })
-
-      if (res.data.status === 1) {
-        console.log('dataaaa', res.data.result)
-        setData(res.data.result)
+      const response = await axios.get(
+        `${REST_API_END_POINT}get-teacher-details-for-editing/${user.teacherId}`,
+      )
+      if (response.data.status === 1) {
+        setTeacherData(response.data.result)
       } else {
         console.log('not getting data')
       }
@@ -114,37 +64,45 @@ export default function DashboardTeacher() {
     }
   }
 
-  const fetchTeacherDataById = async () => {
-    const response = await axios.get(
-      `${REST_API_END_POINT}get-teacher-details-for-editing/${user.teacherId}`,
-    )
-    if (response.data.status === 1) {
-      console.log('dataaaaaaaa', response.data.result)
-      setTeacherData(response.data.result)
-    } else {
-      console.log('not getting data')
-    }
-  }
-
+  // Independent teachers keep their classes in the tool (teacher_classes);
+  // school-based teachers have school-linked classes on the website instead.
+  // Try the tool first, and fall back to the website list (normalized into the
+  // tool's shape) when the tool has none — so the cards/modal render the same.
   const fetchTeacherClasses = async () => {
+    const normalizeWebsiteClass = (c) => ({
+      id: c.id,
+      class_name: c.name,
+      subject: c.subjectName,
+      grade_level: c.gradeName,
+    })
+
+    let toolClasses = []
     try {
-      const res = await axios.post(
-        `${REST_API_END_POINT}class/get-class-by-teacher-id`,
-        {
-          teacherId: user.teacherId, // confirm this is the id that appears in class.teacherId (162)
-        },
-      )
-      if (res.data.status === 1) setClasses(res.data.data)
-      else setClasses([])
+      const toolRes = await toolAxios.get('/api/timetables/classes')
+      toolClasses = toolRes.data?.data || []
     } catch (err) {
-      console.log('Error fetching classes', err)
+      console.log('Tool classes fetch failed', err)
+    }
+
+    if (toolClasses.length > 0) {
+      setClasses(toolClasses)
+      return
+    }
+
+    try {
+      const webRes = await axios.post(
+        `${REST_API_END_POINT}class/get-class-by-teacher-id`,
+        { teacherId: user.teacherId },
+      )
+      if (webRes.data.status === 1) {
+        setClasses((webRes.data.data || []).map(normalizeWebsiteClass))
+      } else {
+        setClasses([])
+      }
+    } catch (err) {
+      console.log('Website classes fetch failed', err)
     }
   }
-
-  const handleChangeSort = (event, value) => {
-    setFilters(value)
-  }
-  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -153,19 +111,6 @@ export default function DashboardTeacher() {
 
     return () => clearTimeout(timer)
   }, [])
-
-  const getGridSize = (index) => {
-    if (filters.length === 1) {
-      return 12
-    } else if (filters.length === 2) {
-      return 6
-    } else if (filters.length === 3) {
-      return index < 2 ? 6 : 12
-    } else if (filters.length === 4) {
-      return 6
-    }
-    return 6
-  }
 
   return (
     <Page title="Dashboard | Umbrelytics">
@@ -181,119 +126,64 @@ export default function DashboardTeacher() {
         <Container maxWidth="xl">
           <Typography
             variant="h4"
-            sx={{ mt: -2, mb: 1, pl: { xs: 1, sm: 1, md: 1, lg: 0 } }}
+            sx={{ mt: -2, mb: 3, pl: { xs: 1, sm: 1, md: 1, lg: 0 } }}
           >
             Welcome {teacherData?.name || ''},
           </Typography>
 
-          {/* LESSON PLANNER CARD */}
+          {/* ── Dashboard sections ──────────────────────────────────────────
+              Each section is its own self-contained component. Add new ones
+              below as they're built. */}
 
-          <Grid container spacing={2} sx={{ mb: -8 }}>
-            <Grid item xs={12} md={12}>
-              <Grid container spacing={3} sx={{ mb: 3 }}>
-                {classes.map((cls) => (
-                  <Grid item xs={12} sm={6} md={4} key={cls.id}>
-                    <Card
-                      sx={{
-                        p: 3,
-                        cursor: 'pointer',
-                        '&:hover': { boxShadow: 6 },
-                      }}
-                      onClick={() => setSelectedClassModal(cls)}
-                    >
-                      <Typography
-                        variant="h6"
-                        sx={{ fontWeight: 'bold', mb: 1 }}
-                      >
-                        {cls.name}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {cls.subjectName || 'Subject'} •{' '}
-                        {cls.gradeName || 'Grade'}
-                      </Typography>
-                    </Card>
-                  </Grid>
-                ))}
-                {classes.length === 0 && (
-                  <Grid item xs={12}>
-                    <Typography color="text.secondary" sx={{ p: 2 }}>
-                      No classes assigned yet.
-                    </Typography>
-                  </Grid>
-                )}
-              </Grid>
-            </Grid>
-            <Grid
-              item
-              xs={12}
-              sm={6}
-              md={4.5}
-              sx={{ mt: 2, display: 'flex', justifyContent: 'flex-start' }}
-            >
-              <Autocomplete
-                multiple
-                fullWidth
-                options={SORT_OPTIONS}
-                getOptionLabel={(option) => option.label}
-                value={filters}
-                onChange={handleChangeSort}
-                renderTags={(value, getTagProps) =>
-                  value.map((option, index) => (
-                    <Chip
-                      color="primary"
-                      size="medium"
-                      label={option.label}
-                      {...getTagProps({ index })}
-                    />
-                  ))
-                }
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    variant="outlined"
-                    label="Sort by"
-                    placeholder="Select options"
-                  />
-                )}
-              />
-            </Grid>
-            <Grid container spacing={3} sx={{ p: 2 }}>
-              {sortedComponents.map((component, index) => {
-                const Component = {
-                  GradeAnalyticsCarousal: GradeAnalyticsCarousal,
-                  SubjectAnalyticsCarousal: SubjectAnalyticsCarousal,
-                  DepartmentAnalyticsCarousal: DepartmentAnalyticsCarousal,
-                  ClassAnalyticsCarousal: ClassAnalyticsCarousal,
-                }[component]
+          {/* Section 1 — today's scheduled classes */}
+          <TodaysClasses />
 
-                const componentData =
-                  {
-                    GradeAnalyticsCarousal: data.latestGradeAnalytics,
-                    SubjectAnalyticsCarousal: data.latestSubjectAnalytics,
-                    DepartmentAnalyticsCarousal: data.latestDepartmentAnalytics,
-                    ClassAnalyticsCarousal: data.latestClassAnalytics,
-                  }[component] || []
+          {/* Section 2 — lessons tied to today's classes (else most recent) */}
+          <RecentLessons />
 
-                return (
-                  <Grid
-                    item
-                    xs={12}
-                    md={getGridSize(index)}
-                    sx={{ mt: 1.5 }}
-                    key={component}
+          {/* Section 3 — most recent research notes */}
+          <RecentNotes />
+
+          {/* My Classes — the teacher's full class list */}
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h5" sx={{ mb: 2 }}>
+              My Classes
+            </Typography>
+            <Grid container spacing={3}>
+              {classes.map((cls) => (
+                <Grid item xs={12} sm={6} md={4} key={cls.id}>
+                  <Card
+                    sx={{
+                      p: 3,
+                      cursor: 'pointer',
+                      '&:hover': { boxShadow: 6 },
+                    }}
+                    onClick={() => setSelectedClassModal(cls)}
                   >
-                    <Typography variant="h6" sx={{ mb: 3 }}>
-                      {component
-                        .replace('AnalyticsCarousal', ' Analytics :')
-                        .replace(/([A-Z])/g, ' $1')
-                        .trim()}
+                    <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }}>
+                      {cls.class_name}
                     </Typography>
-                    <Component data={componentData} />
-                  </Grid>
-                )
-              })}
+                    <Typography variant="body2" color="text.secondary">
+                      {[cls.subject, cls.grade_level]
+                        .filter(Boolean)
+                        .join(' • ')}
+                    </Typography>
+                  </Card>
+                </Grid>
+              ))}
+              {classes.length === 0 && (
+                <Grid item xs={12}>
+                  <Typography color="text.secondary" sx={{ p: 2 }}>
+                    No classes assigned yet.
+                  </Typography>
+                </Grid>
+              )}
             </Grid>
-          </Grid>
+          </Box>
+
+          {/* Dev news / updates — after My Classes */}
+          <NewsUpdates />
+
           <Dialog
             open={!!selectedClassModal}
             onClose={() => setSelectedClassModal(null)}
@@ -302,7 +192,7 @@ export default function DashboardTeacher() {
           >
             {selectedClassModal && (
               <>
-                <DialogTitle>{selectedClassModal.name}</DialogTitle>
+                <DialogTitle>{selectedClassModal.class_name}</DialogTitle>
                 <DialogContent dividers>
                   <Stack spacing={1.5}>
                     <Box>
@@ -310,7 +200,7 @@ export default function DashboardTeacher() {
                         Subject
                       </Typography>
                       <Typography variant="body1">
-                        {selectedClassModal.subjectName || '—'}
+                        {selectedClassModal.subject || '—'}
                       </Typography>
                     </Box>
                     <Box>
@@ -318,7 +208,7 @@ export default function DashboardTeacher() {
                         Grade
                       </Typography>
                       <Typography variant="body1">
-                        {selectedClassModal.gradeName || '—'}
+                        {selectedClassModal.grade_level || '—'}
                       </Typography>
                     </Box>
                   </Stack>
