@@ -2,7 +2,7 @@
 import { PATH_DASHBOARD } from '../../routes/paths'
 // components
 import SvgIconStyle from '../../components/SvgIconStyle'
-import { Home, Person, School } from '@material-ui/icons'
+import { Home, Person, School, AttachMoney } from '@material-ui/icons'
 import { Stack } from '@material-ui/core'
 import { useEffect } from 'react'
 
@@ -129,11 +129,11 @@ const sidebarConfig = [
               path: PATH_DASHBOARD.general.teacherTimetable,
               icon: ICONS.calendar,
             },
-            {
-              title: 'Analytics',
-              path: PATH_DASHBOARD.general.analytics,
-              icon: ICONS.analytics,
-            },
+            //{
+            // title: 'Analytics',
+            // path: PATH_DASHBOARD.general.analytics,
+            // icon: ICONS.analytics,
+            //},
             {
               title: 'Syllabuses',
               path: '/dashboard/syllabuses',
@@ -144,6 +144,11 @@ const sidebarConfig = [
               path: '/dashboard/action-research',
               icon: ICONS.kanban,
             },
+            // {
+            //   title: 'Salary Tool',
+            //   path: PATH_DASHBOARD.general.salaryTool,
+            //   icon: <AttachMoney />,
+            // },
           ]
         : []),
     ],

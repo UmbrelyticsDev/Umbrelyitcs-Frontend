@@ -93,6 +93,7 @@ export default function Router() {
         { path: 'teacher-timetable', element: <TeacherTimetable /> },
         { path: 'syllabuses', element: <Syllabuses /> },
         { path: 'action-research', element: <TeacherActionResearch /> },
+        // { path: 'salary-tool', element: <SalaryTool /> },
         // { path: '/', element: <Navigate to="/dashboard/app" replace /> },
         // { path: 'app', element: <GeneralApp /> },
         { path: 'ecommerce', element: <GeneralEcommerce /> },
@@ -377,6 +378,13 @@ const TeacherActionResearch = Loadable(
     ),
   ),
 )
+// const SalaryTool = Loadable(
+//   lazy(() =>
+//     import(
+//       '../pages/dashboard/Umbrelytics/dashboard-teacher/salary-tool/SalaryTool'
+//     ),
+//   ),
+// )
 const TeacherDetailsView = Loadable(
   lazy(() =>
     import(

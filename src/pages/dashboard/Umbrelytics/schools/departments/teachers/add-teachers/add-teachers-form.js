@@ -28,6 +28,7 @@ import {
   ListItemText,
   CircularProgress,
   Checkbox,
+  MenuItem,
 } from '@material-ui/core'
 import { Icon } from '@iconify/react'
 import fakeRequest from 'src/utils/fakeRequest'
@@ -100,6 +101,63 @@ export default function AddTeacherForm({
   const [classesLoading, setClassesLoading] = useState(false)
   const [toolClasses, setToolClasses] = useState([])
   const [pwModalOpen, setPwModalOpen] = useState(false)
+
+  // --- Salary & Employment profile -------------------------------------------
+  // Held outside Formik so the existing validation schema is untouched. Loaded
+  // from and saved to /salary/profile (independent of the teacher update).
+  const isTeacherProfile = user_type === 4 || user_type === 5
+  const [salaryClassifications, setSalaryClassifications] = useState([])
+  const [salaryProfile, setSalaryProfile] = useState({
+    classification: '',
+    qualification: 'None',
+    posr: 'NONE',
+    grossMonthly: '',
+    pensionPercentage: '',
+    payJTATax: false,
+    employmentDate: '',
+  })
+  const onSalaryChange = (field) => (e) => {
+    const v = field === 'payJTATax' ? e.target.checked : e.target.value
+    setSalaryProfile((prev) => ({ ...prev, [field]: v }))
+  }
+
+  useEffect(() => {
+    if (!isTeacherProfile) return
+    axios
+      .get(`${REST_API_END_POINT}salary/classifications`)
+      .then((res) => {
+        if (res.data.status === 1)
+          setSalaryClassifications(res.data.result || [])
+      })
+      .catch((e) => console.log('classifications load failed', e))
+
+    if (hodEditId) {
+      axios
+        .get(`${REST_API_END_POINT}salary/profile/${hodEditId}`)
+        .then((res) => {
+          const p = res.data.result
+          if (res.data.status === 1 && p) {
+            setSalaryProfile({
+              classification: p.classification || '',
+              qualification: p.qualification || 'None',
+              posr: p.posr || 'NONE',
+              grossMonthly:
+                p.gross_monthly != null ? String(p.gross_monthly) : '',
+              pensionPercentage:
+                p.pension_percentage != null
+                  ? String(p.pension_percentage)
+                  : '',
+              payJTATax: !!p.pay_jta_tax,
+              employmentDate: p.employment_date
+                ? String(p.employment_date).slice(0, 10)
+                : '',
+            })
+          }
+        })
+        .catch((e) => console.log('salary profile load failed', e))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTeacherProfile, hodEditId])
 
   useEffect(() => {
     if (user_type === 4) {
@@ -220,7 +278,12 @@ export default function AddTeacherForm({
         /^\d{10}$/,
         'Phone Number must be exactly 10 digits long and contain only numbers',
       ),
-    subjects: Yup.array().min(1, 'At least one Subject is required'),
+    // Teachers don't assign their own subjects, so it's only required when an
+    // admin/HOD is creating or editing a teacher (user types 1-3).
+    subjects:
+      user_type === 4 || user_type === 5
+        ? Yup.array()
+        : Yup.array().min(1, 'At least one Subject is required'),
     teaching_philosophy: Yup.string(),
   })
 
@@ -262,6 +325,18 @@ export default function AddTeacherForm({
             variant: 'warning',
           })
         } else if (response.data.status == 1) {
+          // Persist the Salary & Employment profile alongside the teacher
+          // update (independent endpoint; the teacher update stays untouched).
+          if (user_type === 4 || user_type === 5) {
+            try {
+              await axios.post(
+                `${REST_API_END_POINT}salary/profile/${hodEditId}`,
+                salaryProfile,
+              )
+            } catch (e) {
+              console.log('Salary profile save failed', e)
+            }
+          }
           window.location.reload()
           enqueueSnackbar(
             user_type !== 4 && user_type !== 5
@@ -354,6 +429,20 @@ export default function AddTeacherForm({
         })
       },
     )
+  }
+
+  // Save the salary & employment profile directly via its own endpoint, so it
+  // is not blocked by the teacher form's validation (subjects, phone, etc.).
+  const saveSalaryProfile = async () => {
+    if (!isTeacherProfile || !hodEditId) return
+    try {
+      await axios.post(
+        `${REST_API_END_POINT}salary/profile/${hodEditId}`,
+        salaryProfile,
+      )
+    } catch (e) {
+      console.log('Salary profile save failed', e)
+    }
   }
 
   const handleGoBack = () => {
@@ -482,112 +571,114 @@ export default function AddTeacherForm({
                   </Stack>
                 )}
 
-                <Stack
-                  direction={{ xs: 'column', sm: 'column', md: 'column' }}
-                  sx={{ mt: 2.5 }}
-                  spacing={{ xs: 2, sm: 2, md: 2 }}
-                >
-                  <Autocomplete
-                    disabled={tempEditId ? false : deptLimit}
-                    multiple
-                    freeSolo={false}
-                    value={values.subjects}
-                    onChange={(event, newValue) => {
-                      console.log(newValue)
-                      setFieldValue('subjects', newValue)
-                      console.log('11111', newValue)
-                    }}
-                    options={optionSubjectList}
-                    getOptionLabel={(option) => option.subjectName || ''}
-                    renderTags={(value, getTagProps) =>
-                      value.map((option, index) => (
-                        <Chip
-                          color="primary"
-                          key={option.id}
-                          size="small"
-                          label={option.subjectName}
-                          {...getTagProps({ index })}
-                        />
-                      ))
-                    }
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="Assign Subjects.."
-                        error={Boolean(touched.subjects && errors.subjects)}
-                        helperText={touched.subjects && errors.subjects}
-                      />
-                    )}
-                  />
-                  {(values.subjects || []).map((subj) => (
-                    <Box
-                      key={subj.id}
-                      sx={{
-                        mt: 2,
-                        p: 2,
-                        border: '1px solid #eee',
-                        borderRadius: 1,
+                {user_type !== 4 && user_type !== 5 && (
+                  <Stack
+                    direction={{ xs: 'column', sm: 'column', md: 'column' }}
+                    sx={{ mt: 2.5 }}
+                    spacing={{ xs: 2, sm: 2, md: 2 }}
+                  >
+                    <Autocomplete
+                      disabled={tempEditId ? false : deptLimit}
+                      multiple
+                      freeSolo={false}
+                      value={values.subjects}
+                      onChange={(event, newValue) => {
+                        console.log(newValue)
+                        setFieldValue('subjects', newValue)
+                        console.log('11111', newValue)
                       }}
-                    >
-                      <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                        {subj.subjectName} — Assign Classes
-                      </Typography>
-                      {(subjectClasses[subj.id] || []).length === 0 ? (
-                        <Typography variant="caption" color="text.secondary">
-                          No classes available for this subject.
-                        </Typography>
-                      ) : (
-                        groupByGrade(subjectClasses[subj.id]).map(
-                          ([gradeName, classes]) => (
-                            <Box key={gradeName} sx={{ ml: 1, mt: 1 }}>
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                                sx={{ fontWeight: 'bold' }}
-                              >
-                                {gradeName}
-                              </Typography>
-                              <Box
-                                sx={{
-                                  display: 'flex',
-                                  flexWrap: 'wrap',
-                                  ml: 1,
-                                }}
-                              >
-                                {classes.map((cls) => (
-                                  <FormControlLabel
-                                    key={cls.id}
-                                    control={
-                                      <Checkbox
-                                        size="small"
-                                        checked={(
-                                          values.assignedClasses || []
-                                        ).includes(cls.id)}
-                                        onChange={(e) => {
-                                          const cur =
-                                            values.assignedClasses || []
-                                          setFieldValue(
-                                            'assignedClasses',
-                                            e.target.checked
-                                              ? [...cur, cls.id]
-                                              : cur.filter(
-                                                  (id) => id !== cls.id,
-                                                ),
-                                          )
-                                        }}
-                                      />
-                                    }
-                                    label={cls.className}
-                                  />
-                                ))}
-                              </Box>
-                            </Box>
-                          ),
-                        )
+                      options={optionSubjectList}
+                      getOptionLabel={(option) => option.subjectName || ''}
+                      renderTags={(value, getTagProps) =>
+                        value.map((option, index) => (
+                          <Chip
+                            color="primary"
+                            key={option.id}
+                            size="small"
+                            label={option.subjectName}
+                            {...getTagProps({ index })}
+                          />
+                        ))
+                      }
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Assign Subjects.."
+                          error={Boolean(touched.subjects && errors.subjects)}
+                          helperText={touched.subjects && errors.subjects}
+                        />
                       )}
-                    </Box>
-                  ))}
-                </Stack>
+                    />
+                    {(values.subjects || []).map((subj) => (
+                      <Box
+                        key={subj.id}
+                        sx={{
+                          mt: 2,
+                          p: 2,
+                          border: '1px solid #eee',
+                          borderRadius: 1,
+                        }}
+                      >
+                        <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                          {subj.subjectName} — Assign Classes
+                        </Typography>
+                        {(subjectClasses[subj.id] || []).length === 0 ? (
+                          <Typography variant="caption" color="text.secondary">
+                            No classes available for this subject.
+                          </Typography>
+                        ) : (
+                          groupByGrade(subjectClasses[subj.id]).map(
+                            ([gradeName, classes]) => (
+                              <Box key={gradeName} sx={{ ml: 1, mt: 1 }}>
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  sx={{ fontWeight: 'bold' }}
+                                >
+                                  {gradeName}
+                                </Typography>
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    ml: 1,
+                                  }}
+                                >
+                                  {classes.map((cls) => (
+                                    <FormControlLabel
+                                      key={cls.id}
+                                      control={
+                                        <Checkbox
+                                          size="small"
+                                          checked={(
+                                            values.assignedClasses || []
+                                          ).includes(cls.id)}
+                                          onChange={(e) => {
+                                            const cur =
+                                              values.assignedClasses || []
+                                            setFieldValue(
+                                              'assignedClasses',
+                                              e.target.checked
+                                                ? [...cur, cls.id]
+                                                : cur.filter(
+                                                    (id) => id !== cls.id,
+                                                  ),
+                                            )
+                                          }}
+                                        />
+                                      }
+                                      label={cls.className}
+                                    />
+                                  ))}
+                                </Box>
+                              </Box>
+                            ),
+                          )
+                        )}
+                      </Box>
+                    ))}
+                  </Stack>
+                )}
 
                 {/* NEW: Teaching Philosophy Field */}
                 {(tempEditId || user_type === 4 || user_type === 5) && (
@@ -624,6 +715,117 @@ export default function AddTeacherForm({
                   }}
                 ></Box>
               </Paper>
+
+              {(user_type === 4 || user_type === 5) && (
+                <Card variant="outlined" sx={{ mt: 3 }}>
+                  <CardContent>
+                    <Typography variant="subtitle1" sx={{ mb: 0.5 }}>
+                      Salary & Employment
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{ color: 'text.secondary' }}
+                    >
+                      Used to calculate your band, point and pay. View the
+                      calculation from your Teacher Details page.
+                    </Typography>
+                    <Divider sx={{ my: 2 }} />
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          select
+                          fullWidth
+                          label="Classification"
+                          value={salaryProfile.classification}
+                          onChange={onSalaryChange('classification')}
+                        >
+                          {salaryClassifications.map((c) => (
+                            <MenuItem
+                              key={c.classification_name}
+                              value={c.classification_name}
+                            >
+                              {c.classification_name} (Band {c.band})
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          select
+                          fullWidth
+                          label="Qualification"
+                          value={salaryProfile.qualification}
+                          onChange={onSalaryChange('qualification')}
+                        >
+                          {['None', 'Masters Degree', 'Doctoral Degree'].map(
+                            (q) => (
+                              <MenuItem key={q} value={q}>
+                                {q}
+                              </MenuItem>
+                            ),
+                          )}
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          select
+                          fullWidth
+                          label="Post of Special Responsibility"
+                          value={salaryProfile.posr}
+                          onChange={onSalaryChange('posr')}
+                        >
+                          {['NONE', 'POSR I', 'POSR II', 'POSR III'].map(
+                            (p) => (
+                              <MenuItem key={p} value={p}>
+                                {p}
+                              </MenuItem>
+                            ),
+                          )}
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          type="number"
+                          label="Gross monthly salary (JMD)"
+                          value={salaryProfile.grossMonthly}
+                          onChange={onSalaryChange('grossMonthly')}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          type="number"
+                          label="Pension contribution (%)"
+                          value={salaryProfile.pensionPercentage}
+                          onChange={onSalaryChange('pensionPercentage')}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          type="date"
+                          label="Employment start date"
+                          InputLabelProps={{ shrink: true }}
+                          value={salaryProfile.employmentDate}
+                          onChange={onSalaryChange('employmentDate')}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={salaryProfile.payJTATax}
+                              onChange={onSalaryChange('payJTATax')}
+                            />
+                          }
+                          label="I pay JTA dues (1%)"
+                        />
+                      </Grid>
+                    </Grid>
+                  </CardContent>
+                </Card>
+              )}
 
               {user_type === 4 && (
                 <>
@@ -716,6 +918,7 @@ export default function AddTeacherForm({
                   color="success"
                   type="submit"
                   variant="contained"
+                  onClick={saveSalaryProfile}
                   loading={isSubmitting}
                   loadingIndicator={
                     user_type !== 4 && user_type !== 5

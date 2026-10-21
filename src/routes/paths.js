@@ -90,6 +90,7 @@ export const PATH_DASHBOARD = {
     ),
     ecommerce: path(ROOTS_DASHBOARD, '/ecommerce'),
     analytics: path(ROOTS_DASHBOARD, '/analytics'),
+    // salaryTool: path(ROOTS_DASHBOARD, '/salary-tool'),
   },
   mail: {
     root: path(ROOTS_DASHBOARD, '/mail'),
