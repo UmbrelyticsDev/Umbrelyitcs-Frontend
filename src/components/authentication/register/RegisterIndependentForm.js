@@ -9,7 +9,6 @@ import closeFill from '@iconify/icons-eva/close-fill'
 import eyeOffFill from '@iconify/icons-eva/eye-off-fill'
 // material
 import {
-  Box,
   Grid,
   Stack,
   Step,
@@ -27,7 +26,6 @@ import {
   Divider,
 } from '@material-ui/core'
 import { LoadingButton } from '@material-ui/lab'
-import Autocomplete from '@material-ui/lab/Autocomplete'
 // hooks
 import useAuth from '../../../hooks/useAuth'
 import useIsMountedRef from '../../../hooks/useIsMountedRef'
@@ -35,11 +33,13 @@ import useIsMountedRef from '../../../hooks/useIsMountedRef'
 import { MIconButton } from '../../@material-extend'
 import TurnstileWidget from './TurnstileWidget'
 
-const STEPS = ['Account', 'Teaching profile', 'Review & consent']
+// Teaching-profile details are no longer collected at registration — new
+// teachers enter them in the first-login onboarding gate. Registration is now
+// just the account and consent.
+const STEPS = ['Account', 'Review & consent']
 
 const stepFields = [
-  ['fullName', 'email', 'password', 'confirmPassword', 'phone'],
-  ['institution', 'country', 'location', 'subjects', 'gradeLevels'],
+  ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'phone'],
   ['acceptedTerms'],
 ]
 
@@ -58,10 +58,14 @@ export default function RegisterIndependentForm({ onRegistered }) {
   const [turnstileToken, setTurnstileToken] = useState('')
 
   const RegisterSchema = Yup.object().shape({
-    fullName: Yup.string()
+    firstName: Yup.string()
       .min(2, 'Too short')
-      .max(100, 'Too long')
-      .required('Full name is required'),
+      .max(50, 'Too long')
+      .required('First name is required'),
+    lastName: Yup.string()
+      .min(2, 'Too short')
+      .max(50, 'Too long')
+      .required('Last name is required'),
     email: Yup.string()
       .email('Enter a valid email address')
       .required('Email is required'),
@@ -72,12 +76,6 @@ export default function RegisterIndependentForm({ onRegistered }) {
       .oneOf([Yup.ref('password')], 'Passwords must match')
       .required('Please confirm your password'),
     phone: Yup.string().required('Phone number is required'),
-    institution: Yup.string().required('Institution is required'),
-    country: Yup.string().required('Country is required'),
-    location: Yup.string().required('Location (city / parish) is required'),
-    subjects: Yup.array().min(1, 'Add at least one subject'),
-    gradeLevels: Yup.array().min(1, 'Add at least one grade level'),
-    teachingPhilosophy: Yup.string(),
     acceptedTerms: Yup.bool().oneOf(
       [true],
       'You must accept the Terms and Privacy Policy',
@@ -86,17 +84,12 @@ export default function RegisterIndependentForm({ onRegistered }) {
 
   const formik = useFormik({
     initialValues: {
-      fullName: '',
+      firstName: '',
+      lastName: '',
       email: '',
       password: '',
       confirmPassword: '',
       phone: '',
-      institution: '',
-      country: '',
-      location: '',
-      subjects: [],
-      gradeLevels: [],
-      teachingPhilosophy: '',
       acceptedTerms: false,
     },
     validationSchema: RegisterSchema,
@@ -108,16 +101,10 @@ export default function RegisterIndependentForm({ onRegistered }) {
       }
       try {
         const res = await registerIndependent({
-          fullName: values.fullName,
+          fullName: `${values.firstName} ${values.lastName}`.trim(),
           email: values.email,
           password: values.password,
           phone: values.phone,
-          country: values.country,
-          institution: values.institution,
-          location: values.location,
-          subjects: values.subjects,
-          gradeLevels: values.gradeLevels,
-          teachingPhilosophy: values.teachingPhilosophy || '',
           acceptedTerms: values.acceptedTerms,
           turnstileToken,
         })
@@ -151,7 +138,6 @@ export default function RegisterIndependentForm({ onRegistered }) {
     isSubmitting,
     handleSubmit,
     getFieldProps,
-    setFieldValue,
     validateForm,
     setTouched,
     handleChange,
@@ -193,13 +179,22 @@ export default function RegisterIndependentForm({ onRegistered }) {
 
         {activeStep === 0 && (
           <Stack spacing={3}>
-            <TextField
-              fullWidth
-              label="Full name"
-              {...getFieldProps('fullName')}
-              error={Boolean(touched.fullName && errors.fullName)}
-              helperText={touched.fullName && errors.fullName}
-            />
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField
+                fullWidth
+                label="First name"
+                {...getFieldProps('firstName')}
+                error={Boolean(touched.firstName && errors.firstName)}
+                helperText={touched.firstName && errors.firstName}
+              />
+              <TextField
+                fullWidth
+                label="Last name"
+                {...getFieldProps('lastName')}
+                error={Boolean(touched.lastName && errors.lastName)}
+                helperText={touched.lastName && errors.lastName}
+              />
+            </Stack>
             <TextField
               fullWidth
               type="email"
@@ -251,86 +246,15 @@ export default function RegisterIndependentForm({ onRegistered }) {
         )}
 
         {activeStep === 1 && (
-          <Stack spacing={3}>
-            <TextField
-              fullWidth
-              label="Institution / School"
-              {...getFieldProps('institution')}
-              error={Boolean(touched.institution && errors.institution)}
-              helperText={touched.institution && errors.institution}
-            />
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField
-                fullWidth
-                label="Country"
-                {...getFieldProps('country')}
-                error={Boolean(touched.country && errors.country)}
-                helperText={touched.country && errors.country}
-              />
-              <TextField
-                fullWidth
-                label="Location (city / parish)"
-                {...getFieldProps('location')}
-                error={Boolean(touched.location && errors.location)}
-                helperText={touched.location && errors.location}
-              />
-            </Stack>
-            <Autocomplete
-              multiple
-              freeSolo
-              options={[]}
-              value={values.subjects}
-              onChange={(e, v) => setFieldValue('subjects', v)}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Subjects (type and press Enter)"
-                  error={Boolean(touched.subjects && errors.subjects)}
-                  helperText={touched.subjects && errors.subjects}
-                />
-              )}
-            />
-            <Autocomplete
-              multiple
-              freeSolo
-              options={[]}
-              value={values.gradeLevels}
-              onChange={(e, v) => setFieldValue('gradeLevels', v)}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Grade levels (type and press Enter)"
-                  error={Boolean(touched.gradeLevels && errors.gradeLevels)}
-                  helperText={touched.gradeLevels && errors.gradeLevels}
-                />
-              )}
-            />
-            <TextField
-              fullWidth
-              multiline
-              minRows={3}
-              label="Teaching philosophy (optional)"
-              {...getFieldProps('teachingPhilosophy')}
-            />
-          </Stack>
-        )}
-
-        {activeStep === 2 && (
           <Stack spacing={2}>
             <Typography variant="subtitle1">Review your details</Typography>
             <Grid container spacing={1} sx={{ typography: 'body2' }}>
-              <Review label="Full name" value={values.fullName} />
+              <Review
+                label="Name"
+                value={`${values.firstName} ${values.lastName}`.trim()}
+              />
               <Review label="Email" value={values.email} />
               <Review label="Phone" value={values.phone} />
-              <Review label="Institution" value={values.institution} />
-              <Review
-                label="Location"
-                value={`${values.location}${
-                  values.country ? `, ${values.country}` : ''
-                }`}
-              />
-              <Review label="Subjects" value={values.subjects.join(', ')} />
-              <Review label="Grades" value={values.gradeLevels.join(', ')} />
             </Grid>
             <Divider />
             <FormControlLabel

@@ -12,7 +12,6 @@ import AccountPopover from './AccountPopover'
 import LanguagePopover from './LanguagePopover'
 import ContactsPopover from './ContactsPopover'
 import NotificationsPopover from './NotificationsPopover'
-import Logo1 from 'src/components/Logo/apple-touch-icon.png'
 
 // ----------------------------------------------------------------------
 
@@ -57,17 +56,11 @@ export default function DashboardNavbar({ onOpenSidebar }) {
           </IconButton>
         </MHidden>
 
-        {/* <Searchbar /> */}
         <Box sx={{ flexGrow: 1 }} />
 
+        {/* Clickable profile — top right */}
         <Stack direction="row" alignItems="center" spacing={0.5}>
           <AccountPopover />
-          <Box
-            component="img"
-            src={Logo1}
-            alt="Umbrelytics"
-            sx={{ width: 90, height: 'auto', objectFit: 'contain' }}
-          />
         </Stack>
       </ToolbarStyle>
     </RootStyle>

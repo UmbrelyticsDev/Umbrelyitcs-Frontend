@@ -168,20 +168,18 @@ function AuthProvider({ children }) {
       },
     })
 
-    if (user.user_type === 1) {
-      navigate(PATH_DASHBOARD.root)
-      window.location.reload()
-    } else if (user.user_type === 2) {
-      navigate(PATH_DASHBOARD.general.dashboardSchool)
-      window.location.reload()
-    } else if (user.user_type === 3) {
-      navigate(PATH_DASHBOARD.general.dashboardHOD)
-      window.location.reload()
-    } else if (user.user_type === 4 || user.user_type === 5) {
-      // 4 = school teacher, 5 = independent teacher — both land on the teacher dashboard
-      navigate(PATH_DASHBOARD.general.dashboardTeacher)
-      window.location.reload()
-    }
+    const landing =
+      user.user_type === 1
+        ? PATH_DASHBOARD.general.app // admin dashboard (umbrelytics), directly
+        : user.user_type === 2
+        ? PATH_DASHBOARD.general.dashboardSchool
+        : user.user_type === 3
+        ? PATH_DASHBOARD.general.dashboardHOD
+        : user.user_type === 4 || user.user_type === 5
+        ? PATH_DASHBOARD.general.dashboardTeacher // 4 = school, 5 = independent
+        : PATH_DASHBOARD.root
+
+    window.location.href = landing
   }
 
   const register = async (email, password, firstName, lastName) => {

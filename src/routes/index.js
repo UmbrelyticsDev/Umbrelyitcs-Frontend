@@ -8,6 +8,7 @@ import LogoOnlyLayout from '../layouts/LogoOnlyLayout'
 // guards
 import GuestGuard from '../guards/GuestGuard'
 import AuthGuard from '../guards/AuthGuard'
+import OnboardingGuard from '../guards/OnboardingGuard'
 // import RoleBasedGuard from '../guards/RoleBasedGuard';
 // components
 import LoadingScreen from '../components/LoadingScreen'
@@ -42,6 +43,22 @@ const Loadable = (Component) => (props) => {
   )
 }
 
+// Sends each role to its own dashboard. Without this the index defaulted
+// everyone to the admin dashboard first, which is the "Welcome Admin" flash
+// non-admins saw on first login before the real redirect resolved.
+function DashboardIndexRedirect() {
+  const user_type = JSON.parse(localStorage.getItem('user_type'))
+  const to =
+    user_type === 2
+      ? '/dashboard/school-dashboard'
+      : user_type === 3
+      ? '/dashboard/hod-dashboard'
+      : user_type === 4 || user_type === 5
+      ? '/dashboard/teacher-dashboard'
+      : '/dashboard/umbrelytics' // admin (type 1)
+  return <Navigate to={to} replace />
+}
+
 export default function Router() {
   return useRoutes([
     {
@@ -71,18 +88,30 @@ export default function Router() {
       ],
     },
 
+    // First-login onboarding (gated, outside the dashboard layout)
+    {
+      path: 'onboarding',
+      element: (
+        <AuthGuard>
+          <Onboarding />
+        </AuthGuard>
+      ),
+    },
+
     // Dashboard Routes
     {
       path: 'dashboard',
       element: (
         <AuthGuard>
-          <DashboardLayout />
+          <OnboardingGuard>
+            <DashboardLayout />
+          </OnboardingGuard>
         </AuthGuard>
       ),
       children: [
         {
           path: '/',
-          element: <Navigate to="/dashboard/umbrelytics" replace />,
+          element: <DashboardIndexRedirect />,
         },
         { path: 'umbrelytics', element: <DashboardUmbrelytics /> },
         { path: 'school-dashboard', element: <DashboardSchool /> },
@@ -357,6 +386,11 @@ const DashboardTeacher = Loadable(
     import(
       '../pages/dashboard/Umbrelytics/dashboard-teacher/dashboard-teacher'
     ),
+  ),
+)
+const Onboarding = Loadable(
+  lazy(() =>
+    import('../pages/dashboard/Umbrelytics/dashboard-teacher/Onboarding'),
   ),
 )
 const DashboardAnalytics = Loadable(

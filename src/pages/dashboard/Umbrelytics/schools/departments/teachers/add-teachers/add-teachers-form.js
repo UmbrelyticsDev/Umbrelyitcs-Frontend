@@ -431,17 +431,55 @@ export default function AddTeacherForm({
     )
   }
 
-  // Save the salary & employment profile directly via its own endpoint, so it
-  // is not blocked by the teacher form's validation (subjects, phone, etc.).
-  const saveSalaryProfile = async () => {
+  // --- Teaching profile (institution, country, location, subjects, grades) ---
+  // Editable here and also collected at first-login onboarding. Saved through
+  // the teaching-profile endpoint, separate from the teacher update.
+  const [teachingProfile, setTeachingProfile] = useState({
+    institution: '',
+    country: '',
+    location: '',
+    subjects: [],
+    gradeLevels: [],
+  })
+  const onTeachingChange = (field) => (e) =>
+    setTeachingProfile((p) => ({ ...p, [field]: e.target.value }))
+
+  useEffect(() => {
+    if (!data || !data.id) return
+    const toArr = (v) =>
+      v
+        ? String(v)
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : []
+    setTeachingProfile({
+      institution: data.institution || '',
+      country: data.country || '',
+      location: data.location || '',
+      // Only independents keep free-text subjects; school teachers use ids.
+      subjects: user_type === 5 ? toArr(data.subjects) : [],
+      gradeLevels: toArr(data.grade_levels),
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data])
+
+  const saveTeachingProfile = async () => {
     if (!isTeacherProfile || !hodEditId) return
+    const payload = {
+      institution: teachingProfile.institution,
+      country: teachingProfile.country,
+      location: teachingProfile.location,
+      gradeLevels: teachingProfile.gradeLevels,
+    }
+    if (user_type === 5) payload.subjects = teachingProfile.subjects
     try {
       await axios.post(
-        `${REST_API_END_POINT}salary/profile/${hodEditId}`,
-        salaryProfile,
+        `${REST_API_END_POINT}teacher/teaching-profile/${hodEditId}`,
+        payload,
       )
     } catch (e) {
-      console.log('Salary profile save failed', e)
+      console.log('Teaching profile save failed', e)
     }
   }
 
@@ -827,6 +865,81 @@ export default function AddTeacherForm({
                 </Card>
               )}
 
+              {(user_type === 4 || user_type === 5) && (
+                <Card variant="outlined" sx={{ mt: 3 }}>
+                  <CardContent>
+                    <Typography variant="subtitle1" sx={{ mb: 2 }}>
+                      Teaching Profile
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12}>
+                        <TextField
+                          fullWidth
+                          label="Institution / School"
+                          value={teachingProfile.institution}
+                          onChange={onTeachingChange('institution')}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="Country"
+                          value={teachingProfile.country}
+                          onChange={onTeachingChange('country')}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="Location (city / parish)"
+                          value={teachingProfile.location}
+                          onChange={onTeachingChange('location')}
+                        />
+                      </Grid>
+                      {user_type === 5 && (
+                        <Grid item xs={12}>
+                          <Autocomplete
+                            multiple
+                            freeSolo
+                            options={[]}
+                            value={teachingProfile.subjects}
+                            onChange={(e, v) =>
+                              setTeachingProfile((p) => ({ ...p, subjects: v }))
+                            }
+                            renderInput={(params) => (
+                              <TextField
+                                {...params}
+                                label="Subjects (type and press Enter)"
+                              />
+                            )}
+                          />
+                        </Grid>
+                      )}
+                      <Grid item xs={12}>
+                        <Autocomplete
+                          multiple
+                          freeSolo
+                          options={[]}
+                          value={teachingProfile.gradeLevels}
+                          onChange={(e, v) =>
+                            setTeachingProfile((p) => ({
+                              ...p,
+                              gradeLevels: v,
+                            }))
+                          }
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              label="Grade levels (type and press Enter)"
+                            />
+                          )}
+                        />
+                      </Grid>
+                    </Grid>
+                  </CardContent>
+                </Card>
+              )}
+
               {user_type === 4 && (
                 <>
                   {/* School */}
@@ -918,7 +1031,19 @@ export default function AddTeacherForm({
                   color="success"
                   type="submit"
                   variant="contained"
-                  onClick={saveSalaryProfile}
+                  onClick={() => {
+                    if (isTeacherProfile && hodEditId) {
+                      axios
+                        .post(
+                          `${REST_API_END_POINT}salary/profile/${hodEditId}`,
+                          salaryProfile,
+                        )
+                        .catch((e) =>
+                          console.log('Salary profile save failed', e),
+                        )
+                    }
+                    saveTeachingProfile()
+                  }}
                   loading={isSubmitting}
                   loadingIndicator={
                     user_type !== 4 && user_type !== 5
