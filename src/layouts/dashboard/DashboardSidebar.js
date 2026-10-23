@@ -190,38 +190,20 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
         },
       }}
     >
-      {/* Company logo — clickable circular badge, returns to the dashboard */}
-      <Box sx={{ px: 2.5, py: 3, display: 'flex', justifyContent: 'left' }}>
-        <RouterLink to="/dashboard" style={{ textDecoration: 'none' }}>
+      {/* Company logo — clickable, returns to the dashboard */}
+      <Box sx={{ px: 4, py: 3 }}>
+        <RouterLink to="/dashboard">
           <Box
+            component="img"
+            src={Logo1}
+            alt="Umbrelytics"
             sx={{
-              width: 50,
-              height: 50,
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              bgcolor: 'common.white',
-              border: (theme) => `3px solid ${theme.palette.primary.main}`,
-              boxShadow: '0 8px 20px rgba(0,0,0,0.18)',
+              width: 200,
+              height: 'auto',
+              objectFit: 'contain',
               cursor: 'pointer',
-              overflow: 'hidden',
-              transition: 'transform 0.2s ease',
-              '&:hover': { transform: 'scale(1.06)' },
             }}
-          >
-            <Box
-              component="img"
-              src={Logo1}
-              alt="Umbrelytics"
-              sx={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'contain',
-                transform: 'scale(1.5)',
-              }}
-            />
-          </Box>
+          />
         </RouterLink>
       </Box>
 
