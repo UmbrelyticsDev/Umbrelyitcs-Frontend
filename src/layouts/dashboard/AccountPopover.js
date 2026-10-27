@@ -26,6 +26,7 @@ import { MIconButton } from '../../components/@material-extend'
 import MyAvatar from '../../components/MyAvatar'
 import MenuPopover from '../../components/MenuPopover'
 import ProfilePictureModal from '../../components/ProfilePictureModal'
+import creditCardFill from '@iconify/icons-eva/credit-card-fill'
 import axios from 'axios'
 import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
 
@@ -60,9 +61,14 @@ const MENU_OPTIONS = [
   },*/
 ]
 
-// NEW: Edit picture option - ONLY for teachers
+//Edit picture option - ONLY for teachers
 const MENU_OPTIONS_WITH_PICTURE = [
   ...MENU_OPTIONS,
+  {
+    label: 'Account Details',
+    icon: creditCardFill,
+    linkTo: '/dashboard/account',
+  },
   {
     label: 'Update Profile',
     icon: personFill,
@@ -72,14 +78,6 @@ const MENU_OPTIONS_WITH_PICTURE = [
     label: 'Edit Profile Picture',
     icon: imageFill,
     action: 'edit-picture',
-  },
-]
-
-const MENU_OPTIONS1 = [
-  {
-    label: 'Home',
-    icon: homeFill,
-    linkTo: '/dashboard/umbrelytics',
   },
 ]
 

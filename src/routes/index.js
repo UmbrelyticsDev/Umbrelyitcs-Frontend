@@ -131,6 +131,7 @@ export default function Router() {
         { path: 'school-details/profile', element: <AddSchool /> }, // this is the school update profile in school admin login
         { path: 'hod-details/profile', element: <AddSchool /> }, // this is the hod update profile in school hod login
         { path: 'teacher-details', element: <TeacherDetailsView /> },
+        { path: 'account', element: <AccountPage /> },
         {
           path: 'schools/department',
           element: <TabDepartmentAnalyticsListing />,
@@ -424,6 +425,12 @@ const TeacherDetailsView = Loadable(
     import(
       '../pages/dashboard/Umbrelytics/dashboard-teacher/TeacherDetailsView'
     ),
+  ),
+)
+
+const AccountPage = Loadable(
+  lazy(() =>
+    import('../pages/dashboard/Umbrelytics/dashboard-teacher/AccountPage'),
   ),
 )
 

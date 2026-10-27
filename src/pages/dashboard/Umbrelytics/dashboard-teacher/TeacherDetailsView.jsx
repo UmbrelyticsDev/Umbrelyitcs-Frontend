@@ -77,26 +77,42 @@ export default function TeacherDetailsView() {
         const data = res.data.result
         setTeacher(data)
 
-        // Resolve subject ids (CSV) -> subject names via the department list.
-        const theDepartmentId = data.departmentId || user?.departmentId
-        if (data.subjects && theDepartmentId) {
+        // Resolve subject names.
+        // Independent teachers (user_type 5) store subjects as FREE TEXT in the
+        // `subjects` field (e.g. "Chemistry, Physics"), so display them as-is.
+        // School teachers store subject IDs, resolved against their department.
+        if (data.subjects) {
           try {
-            const subRes = await axios.get(
-              `${REST_API_END_POINT}get-subject/${theDepartmentId}`,
-            )
-            const subjectsList = (
-              subRes.data?.subjects ||
-              subRes.data?.result ||
-              []
-            ).filter((s) => s.status === 1)
-            const selectedIds = String(data.subjects)
-              .split(',')
-              .map((id) => parseInt(id, 10))
-              .filter((id) => !Number.isNaN(id))
-            const names = selectedIds
-              .map((id) => subjectsList.find((s) => s.id === id)?.subjectName)
-              .filter(Boolean)
-            setSubjectNames(names)
+            if (Number(user_type) === 5) {
+              setSubjectNames(
+                String(data.subjects)
+                  .split(',')
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+              )
+            } else {
+              const theDepartmentId = data.departmentId || user?.departmentId
+              if (theDepartmentId) {
+                const subRes = await axios.get(
+                  `${REST_API_END_POINT}get-subject/${theDepartmentId}`,
+                )
+                const subjectsList = (
+                  subRes.data?.subjects ||
+                  subRes.data?.result ||
+                  []
+                ).filter((s) => s.status === 1)
+                const selectedIds = String(data.subjects)
+                  .split(',')
+                  .map((id) => parseInt(id, 10))
+                  .filter((id) => !Number.isNaN(id))
+                const names = selectedIds
+                  .map(
+                    (id) => subjectsList.find((s) => s.id === id)?.subjectName,
+                  )
+                  .filter(Boolean)
+                setSubjectNames(names)
+              }
+            }
           } catch (e) {
             console.error('Failed to resolve subject names:', e)
           }

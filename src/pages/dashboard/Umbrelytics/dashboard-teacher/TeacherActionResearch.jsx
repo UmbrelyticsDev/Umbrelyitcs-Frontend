@@ -33,6 +33,8 @@ export default function TeacherActionResearch() {
   const [methodology, setMethodology] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savedThesis, setSavedThesis] = useState('')
+  const [savedMethodology, setSavedMethodology] = useState('')
 
   const [notes, setNotes] = useState([])
   const [noteTitle, setNoteTitle] = useState('')
@@ -50,8 +52,12 @@ export default function TeacherActionResearch() {
     toolAxios
       .get('/api/teachers/research')
       .then((r) => {
-        setThesis(r.data.data.research_thesis || '')
-        setMethodology(r.data.data.research_methodology || '')
+        const t = r.data.data.research_thesis || ''
+        const m = r.data.data.research_methodology || ''
+        setThesis(t)
+        setMethodology(m)
+        setSavedThesis(t)
+        setSavedMethodology(m)
       })
       .catch((e) => console.log('Failed to load research', e))
       .finally(() => setLoading(false))
@@ -95,6 +101,8 @@ export default function TeacherActionResearch() {
         research_thesis: thesis,
         research_methodology: methodology,
       })
+      setSavedThesis(thesis)
+      setSavedMethodology(methodology)
       enqueueSnackbar('Saved', { variant: 'success' })
     } catch (e) {
       enqueueSnackbar('Save failed', { variant: 'error' })
@@ -183,6 +191,8 @@ export default function TeacherActionResearch() {
     }
   }
 
+  const isDirty = thesis !== savedThesis || methodology !== savedMethodology
+
   if (loading) {
     return (
       <Page title="Action Research | Umbrelytics">
@@ -233,7 +243,7 @@ export default function TeacherActionResearch() {
                   variant="contained"
                   sx={{ color: '#fff' }}
                   onClick={handleSave}
-                  disabled={saving}
+                  disabled={saving || !isDirty}
                 >
                   {saving ? 'Saving…' : 'Save'}
                 </Button>
