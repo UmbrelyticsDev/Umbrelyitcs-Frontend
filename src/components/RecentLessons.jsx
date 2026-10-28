@@ -58,6 +58,15 @@ export default function RecentLessons() {
       'noopener,noreferrer',
     )
 
+  // Open the tool's lesson generator (separate app → new tab) to create a first
+  // lesson from the empty state.
+  const openLessonGenerator = () =>
+    window.open(
+      `${TOOL_APP_URL}/lesson-plan-generator`,
+      '_blank',
+      'noopener,noreferrer',
+    )
+
   useEffect(() => {
     let active = true
     Promise.all([
@@ -114,11 +123,32 @@ export default function RecentLessons() {
           Loading recent lessons…
         </Typography>
       ) : toShow.length === 0 ? (
-        <Card variant="outlined">
+        // Empty state → clickable: opens the Lesson Generator (external tool).
+        <Card
+          variant="outlined"
+          onClick={openLessonGenerator}
+          sx={{
+            cursor: 'pointer',
+            transition: 'box-shadow 0.15s',
+            '&:hover': { boxShadow: 4 },
+          }}
+        >
           <CardContent>
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              No lessons yet. Head to the Lesson Generator to create your first.
-            </Typography>
+            <Stack
+              direction="row"
+              spacing={1}
+              alignItems="center"
+              justifyContent="space-between"
+            >
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                No lessons yet. Click here to open the Lesson Generator and
+                create your first.
+              </Typography>
+              <OpenIcon
+                fontSize="small"
+                sx={{ color: 'text.disabled', flexShrink: 0 }}
+              />
+            </Stack>
           </CardContent>
         </Card>
       ) : (

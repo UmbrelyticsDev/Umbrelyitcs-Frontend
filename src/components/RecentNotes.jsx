@@ -8,6 +8,8 @@ import {
   Chip,
   Grid,
 } from '@material-ui/core'
+import { ArrowForward as ArrowForwardIcon } from '@material-ui/icons'
+import { useNavigate } from 'react-router-dom'
 import toolAxios from 'src/_apis_/toolAxios'
 
 // Dashboard section: the teacher's most recent research notes (the same store
@@ -18,6 +20,7 @@ const SHOW = 6
 export default function RecentNotes() {
   const [notes, setNotes] = useState([])
   const [loading, setLoading] = useState(true)
+  const navigate = useNavigate()
 
   useEffect(() => {
     let active = true
@@ -49,11 +52,32 @@ export default function RecentNotes() {
           Loading notes…
         </Typography>
       ) : recent.length === 0 ? (
-        <Card variant="outlined">
+        // Empty state → clickable: opens the Action Research page.
+        <Card
+          variant="outlined"
+          onClick={() => navigate('/dashboard/action-research')}
+          sx={{
+            cursor: 'pointer',
+            transition: 'box-shadow 0.15s',
+            '&:hover': { boxShadow: 4 },
+          }}
+        >
           <CardContent>
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              No notes yet. Jot one down in the Research Notebook.
-            </Typography>
+            <Stack
+              direction="row"
+              spacing={1}
+              alignItems="center"
+              justifyContent="space-between"
+            >
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                No notes yet. Click here to open the Research Notebook and jot
+                one down.
+              </Typography>
+              <ArrowForwardIcon
+                fontSize="small"
+                sx={{ color: 'text.disabled', flexShrink: 0 }}
+              />
+            </Stack>
           </CardContent>
         </Card>
       ) : (

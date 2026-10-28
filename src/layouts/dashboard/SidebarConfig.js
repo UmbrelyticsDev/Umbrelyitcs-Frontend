@@ -135,6 +135,12 @@ const sidebarConfig = [
             // icon: ICONS.analytics,
             //},
             {
+              title: 'Lesson Planner',
+              external:
+                process.env.REACT_APP_TOOL_URL || 'http://localhost:3001',
+              icon: ICONS.kanban,
+            },
+            {
               title: 'Syllabuses',
               path: '/dashboard/syllabuses',
               icon: ICONS.blog,

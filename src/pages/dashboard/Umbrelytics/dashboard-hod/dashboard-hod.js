@@ -178,7 +178,7 @@ export default function DashboardHOD() {
                 <CardContent sx={{ textAlign: 'center', py: 4 }}>
                   <SchoolIcon sx={{ fontSize: 48, mb: 2 }} />
                   <Typography variant="h6" sx={{ mb: 1, fontWeight: 'bold' }}>
-                    Lesson Planner Tool
+                    Lesson Planner
                   </Typography>
                   <Typography variant="body2" sx={{ mb: 3, opacity: 0.9 }}>
                     Create and manage lesson plans with AI assistance

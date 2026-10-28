@@ -74,7 +74,7 @@ NavItem.propTypes = {
 function NavItem({ item, active }) {
   const theme = useTheme()
   const isActiveRoot = active(item.path)
-  const { title, path, icon, info, children } = item
+  const { title, path, icon, info, children, external } = item
   const [open, setOpen] = useState(isActiveRoot)
 
   const handleOpen = () => {
@@ -157,6 +157,23 @@ function NavItem({ item, active }) {
           </List>
         </Collapse>
       </>
+    )
+  }
+
+  // External link (opens in a new tab) — e.g. the Lesson Planner tool.
+  // Rendered as a plain anchor so it doesn't go through client-side routing.
+  if (external) {
+    return (
+      <ListItemStyle
+        component="a"
+        href={external}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <ListItemIconStyle>{icon && icon}</ListItemIconStyle>
+        <ListItemText disableTypography primary={title} />
+        {info && info}
+      </ListItemStyle>
     )
   }
 

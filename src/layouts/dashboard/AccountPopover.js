@@ -74,11 +74,11 @@ const MENU_OPTIONS_WITH_PICTURE = [
     icon: personFill,
     linkTo: '/dashboard/teacher-details/profile',
   },
-  {
+  /*{
     label: 'Edit Profile Picture',
     icon: imageFill,
     action: 'edit-picture',
-  },
+  },*/
 ]
 
 // ----------------------------------------------------------------------

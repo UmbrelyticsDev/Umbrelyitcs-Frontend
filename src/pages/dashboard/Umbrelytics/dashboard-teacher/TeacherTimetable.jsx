@@ -142,6 +142,17 @@ export default function TeacherTimetable() {
     setSearchParams(searchParams, { replace: true })
   }, [classes, searchParams])
 
+  // Auto-open the Manage Classes dialog when arriving with ?manageClasses=1
+  // (from the dashboard empty-state CTAs). Independents only — school-linked
+  // teachers can't manage classes, so for them it just lands on the timetable.
+  useEffect(() => {
+    if (searchParams.get('manageClasses') !== '1') return
+    if (canEdit) setClassDialog(true)
+    searchParams.delete('manageClasses')
+    setSearchParams(searchParams, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
   // Auto-fill end time from start + duration (single/double/triple). Custom
   // leaves the end time to the user.
   useEffect(() => {

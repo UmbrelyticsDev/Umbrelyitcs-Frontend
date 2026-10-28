@@ -14,6 +14,7 @@ import {
   DialogContent,
   DialogActions,
 } from '@material-ui/core'
+import { ArrowForward as ArrowForwardIcon } from '@material-ui/icons'
 import Page from '../../../../components/Page'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
@@ -135,6 +136,9 @@ export default function DashboardTeacher() {
               Each section is its own self-contained component. Add new ones
               below as they're built. */}
 
+          {/* Dev news / updates */}
+          <NewsUpdates />
+
           {/* Section 1 — today's scheduled classes */}
           <TodaysClasses />
 
@@ -173,16 +177,39 @@ export default function DashboardTeacher() {
               ))}
               {classes.length === 0 && (
                 <Grid item xs={12}>
-                  <Typography color="text.secondary" sx={{ p: 2 }}>
-                    No classes assigned yet.
-                  </Typography>
+                  {/* Empty state → clickable: opens the Timetable with the
+                      Manage Classes modal (independents) so first-time users
+                      can add classes right away. */}
+                  <Card
+                    variant="outlined"
+                    onClick={() =>
+                      navigate(
+                        `${PATH_DASHBOARD.general.teacherTimetable}?manageClasses=1`,
+                      )
+                    }
+                    sx={{
+                      p: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer',
+                      transition: 'box-shadow 0.15s',
+                      '&:hover': { boxShadow: 4 },
+                    }}
+                  >
+                    <Typography color="text.secondary">
+                      No classes yet. Click here to add your classes and get
+                      started.
+                    </Typography>
+                    <ArrowForwardIcon
+                      fontSize="small"
+                      sx={{ color: 'text.disabled', flexShrink: 0 }}
+                    />
+                  </Card>
                 </Grid>
               )}
             </Grid>
           </Box>
-
-          {/* Dev news / updates — after My Classes */}
-          <NewsUpdates />
 
           <Dialog
             open={!!selectedClassModal}

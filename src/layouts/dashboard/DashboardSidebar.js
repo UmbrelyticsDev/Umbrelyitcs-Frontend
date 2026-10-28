@@ -31,7 +31,7 @@ import sidebarConfig from './SidebarConfig'
 import { DocIcon } from '../../assets'
 import Image from '../../../src/images/Teacher1.png'
 import Logo from 'src/components/Logo'
-import Logo1 from 'src/components/Logo/apple-touch-icon.png'
+import Logo1 from 'src/components/Logo/android-chrome-512x512.png'
 import axios from 'axios'
 import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
 
@@ -191,15 +191,16 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
       }}
     >
       {/* Company logo — clickable, returns to the dashboard */}
-      <Box sx={{ px: 4, py: 3 }}>
-        <RouterLink to="/dashboard">
+      <Box sx={{ px: 2, pt: 2.5, pb: 1 }}>
+        <RouterLink to="/dashboard" style={{ display: 'block' }}>
           <Box
             component="img"
             src={Logo1}
             alt="Umbrelytics"
             sx={{
-              width: 200,
+              width: '100%', // fill the sidebar width — as large as it goes
               height: 'auto',
+              display: 'block',
               objectFit: 'contain',
               cursor: 'pointer',
             }}
@@ -217,22 +218,6 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
         >
           <ListItemIconStyle>{getIcon('ic_blog')}</ListItemIconStyle>
           <ListItemText disableTypography primary="Philosophy" />
-        </ListItemStyle>
-      )}
-
-      {/* Lesson Planning - styled as a nav item */}
-      {(user_type === 4 || user_type === 5) && (
-        <ListItemStyle
-          onClick={() =>
-            window.open(
-              process.env.REACT_APP_TOOL_URL || 'http://localhost:3001',
-              '_blank',
-            )
-          }
-          sx={{ cursor: 'pointer' }}
-        >
-          <ListItemIconStyle>{getIcon('ic_kanban')}</ListItemIconStyle>
-          <ListItemText disableTypography primary="Lesson Planner Tool" />
         </ListItemStyle>
       )}
 

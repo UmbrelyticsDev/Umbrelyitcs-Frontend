@@ -7,7 +7,15 @@ import {
   Stack,
   Chip,
 } from '@material-ui/core'
-import { AccessTime as TimeIcon, Room as RoomIcon } from '@material-ui/icons'
+import { alpha } from '@material-ui/core/styles'
+import {
+  AccessTime as TimeIcon,
+  Room as RoomIcon,
+  ArrowForward as ArrowForwardIcon,
+  CalendarToday as CalendarIcon,
+} from '@material-ui/icons'
+import { useNavigate } from 'react-router-dom'
+import { PATH_DASHBOARD } from 'src/routes/paths'
 import toolAxios from 'src/_apis_/toolAxios'
 
 // Dashboard section: the teacher's classes scheduled for today, pulled from the
@@ -28,6 +36,7 @@ export default function TodaysClasses() {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
   const today = DAY_NAMES[new Date().getDay()]
+  const navigate = useNavigate()
 
   useEffect(() => {
     let active = true
@@ -69,12 +78,58 @@ export default function TodaysClasses() {
           Loading today&apos;s classes…
         </Typography>
       ) : todays.length === 0 ? (
-        <Card variant="outlined">
-          <CardContent>
-            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              No classes scheduled for today. Enjoy the breather — or head to My
-              Timetable to add one.
-            </Typography>
+        // Empty state → a soft, primary-tinted call-to-action meant to draw a
+        // first-time teacher here first. Opens the Timetable with the Manage
+        // Classes modal (independents) so they can add classes right away.
+        <Card
+          variant="outlined"
+          onClick={() =>
+            navigate(
+              `${PATH_DASHBOARD.general.teacherTimetable}?manageClasses=1`,
+            )
+          }
+          sx={{
+            cursor: 'pointer',
+            borderColor: 'primary.main',
+            bgcolor: (theme) => alpha(theme.palette.primary.main, 0.06),
+            transition: 'box-shadow 0.15s, background-color 0.15s',
+            '&:hover': {
+              boxShadow: 4,
+              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+            },
+          }}
+        >
+          <CardContent sx={{ py: 2.5 }}>
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Box
+                sx={{
+                  width: 44,
+                  height: 44,
+                  flexShrink: 0,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  bgcolor: 'primary.main',
+                  color: '#fff',
+                }}
+              >
+                <CalendarIcon fontSize="small" />
+              </Box>
+              <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+                <Typography
+                  variant="subtitle1"
+                  sx={{ fontWeight: 700, color: 'primary.main' }}
+                >
+                  Set up your classes
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  Add your classes and build your timetable to get started — it
+                  only takes a minute.
+                </Typography>
+              </Box>
+              <ArrowForwardIcon sx={{ color: 'primary.main', flexShrink: 0 }} />
+            </Stack>
           </CardContent>
         </Card>
       ) : (
