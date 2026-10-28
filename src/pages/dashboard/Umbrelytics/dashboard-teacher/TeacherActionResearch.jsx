@@ -14,7 +14,12 @@ import {
   Chip,
   CircularProgress,
 } from '@material-ui/core'
-import { Edit as EditIcon, Delete as DeleteIcon } from '@material-ui/icons'
+import {
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+} from '@material-ui/icons'
 import { useSnackbar } from 'notistack'
 import Page from '../../../../components/Page'
 import toolAxios from 'src/_apis_/toolAxios'
@@ -40,6 +45,7 @@ export default function TeacherActionResearch() {
   const [noteTitle, setNoteTitle] = useState('')
   const [noteContent, setNoteContent] = useState('')
   const [editingId, setEditingId] = useState(null)
+  const [expandedId, setExpandedId] = useState(null)
   const [classes, setClasses] = useState([])
   const [noteClassId, setNoteClassId] = useState('')
 
@@ -314,74 +320,97 @@ export default function TeacherActionResearch() {
               </Typography>
             ) : (
               <Stack spacing={1.5}>
-                {notes.map((note) => (
-                  <Box
-                    key={note.id}
-                    sx={{
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      borderRadius: 1,
-                      p: 2,
-                    }}
-                  >
-                    <Stack
-                      direction="row"
-                      justifyContent="space-between"
-                      alignItems="flex-start"
-                      spacing={2}
+                {notes.map((note) => {
+                  const expanded = expandedId === note.id
+                  return (
+                    <Box
+                      key={note.id}
+                      sx={{
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 1,
+                        p: 2,
+                      }}
                     >
-                      <Box sx={{ minWidth: 0, flex: 1 }}>
-                        {note.title && (
-                          <Typography variant="subtitle2">
-                            {note.title}
+                      <Stack
+                        direction="row"
+                        justifyContent="space-between"
+                        alignItems="center"
+                        spacing={2}
+                      >
+                        <Box
+                          sx={{ minWidth: 0, flex: 1, cursor: 'pointer' }}
+                          onClick={() =>
+                            setExpandedId(expanded ? null : note.id)
+                          }
+                        >
+                          <Typography variant="subtitle2" noWrap={!expanded}>
+                            {note.title || 'Untitled note'}
                           </Typography>
-                        )}
-                        <Typography
-                          variant="body2"
-                          sx={{ whiteSpace: 'pre-wrap', mt: 0.5 }}
-                        >
-                          {note.content}
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            color: 'text.disabled',
-                            display: 'block',
-                            mt: 1,
-                          }}
-                        >
-                          {new Date(note.created_at).toLocaleDateString()}
-                          {note.updated_at !== note.created_at && ' (edited)'}
-                        </Typography>
-                        {note.class_name && (
-                          <Chip
-                            label={note.class_name}
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: 'text.disabled',
+                              display: 'block',
+                              mt: 0.5,
+                            }}
+                          >
+                            {new Date(note.created_at).toLocaleDateString()}
+                            {note.updated_at !== note.created_at && ' (edited)'}
+                          </Typography>
+                        </Box>
+                        <Stack direction="row" spacing={0.5}>
+                          <IconButton
+                            size="small"
+                            onClick={() =>
+                              setExpandedId(expanded ? null : note.id)
+                            }
+                          >
+                            {expanded ? (
+                              <ExpandLessIcon fontSize="small" />
+                            ) : (
+                              <ExpandMoreIcon fontSize="small" />
+                            )}
+                          </IconButton>
+                          <IconButton
                             size="small"
                             color="primary"
-                            variant="outlined"
-                            sx={{ mt: 1 }}
-                          />
-                        )}
-                      </Box>
-                      <Stack direction="row" spacing={0.5}>
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          onClick={() => startEdit(note)}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => handleDeleteNote(note.id)}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
+                            onClick={() => startEdit(note)}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDeleteNote(note.id)}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Stack>
                       </Stack>
-                    </Stack>
-                  </Box>
-                ))}
+
+                      {expanded && (
+                        <Box sx={{ mt: 1.5 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{ whiteSpace: 'pre-wrap' }}
+                          >
+                            {note.content}
+                          </Typography>
+                          {note.class_name && (
+                            <Chip
+                              label={note.class_name}
+                              size="small"
+                              color="primary"
+                              variant="outlined"
+                              sx={{ mt: 1 }}
+                            />
+                          )}
+                        </Box>
+                      )}
+                    </Box>
+                  )
+                })}
               </Stack>
             )}
           </CardContent>
