@@ -127,7 +127,7 @@ export default function Onboarding() {
                   renderInput={(params) => (
                     <TextField
                       {...params}
-                      label="Subjects (type and press Enter)"
+                      label="Subjects (Press Enter after each subject)"
                     />
                   )}
                 />
@@ -144,7 +144,7 @@ export default function Onboarding() {
                   renderInput={(params) => (
                     <TextField
                       {...params}
-                      label="Grade levels (type and press Enter)"
+                      label="Grade levels (Press Enter after each grade level)"
                     />
                   )}
                 />
