@@ -2,7 +2,13 @@
 import { PATH_DASHBOARD } from '../../routes/paths'
 // components
 import SvgIconStyle from '../../components/SvgIconStyle'
-import { Home, Person, School, AttachMoney } from '@material-ui/icons'
+import {
+  Home,
+  Person,
+  School,
+  AttachMoney,
+  Bookmarks,
+} from '@material-ui/icons'
 import { Stack } from '@material-ui/core'
 import { useEffect } from 'react'
 
@@ -139,6 +145,13 @@ const sidebarConfig = [
               external:
                 process.env.REACT_APP_TOOL_URL || 'http://localhost:3001',
               icon: ICONS.kanban,
+            },
+            {
+              title: 'Saved Lessons',
+              external: `${
+                process.env.REACT_APP_TOOL_URL || 'http://localhost:3001'
+              }/saved-lessons`,
+              icon: <Bookmarks />,
             },
             {
               title: 'Syllabuses',

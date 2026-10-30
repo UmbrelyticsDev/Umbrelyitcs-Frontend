@@ -19,6 +19,7 @@ import { Icon } from '@iconify/react'
 import editFill from '@iconify/icons-eva/edit-2-fill'
 import emailFill from '@iconify/icons-eva/email-fill'
 import phoneFill from '@iconify/icons-eva/phone-fill'
+import pinFill from '@iconify/icons-eva/pin-fill'
 import bookOpenFill from '@iconify/icons-eva/book-open-fill'
 import homeFill from '@iconify/icons-eva/home-fill'
 import Page from '../../../../components/Page'
@@ -259,6 +260,11 @@ export default function TeacherDetailsView() {
                       icon={phoneFill}
                       label="Phone"
                       value={teacher.phoneNumber || '—'}
+                    />
+                    <InfoRow
+                      icon={pinFill}
+                      label="Location"
+                      value={teacher.location || '—'}
                     />
                     <Box>
                       <Stack

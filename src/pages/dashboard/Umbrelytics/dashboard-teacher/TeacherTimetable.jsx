@@ -29,6 +29,7 @@ import {
   School as SchoolIcon,
   CalendarToday as CalendarIcon,
   FileCopyOutlined as FileCopyIcon,
+  ReportProblemOutlined as WarnIcon,
 } from '@material-ui/icons'
 import { useSnackbar } from 'notistack'
 import Page from '../../../../components/Page'
@@ -57,6 +58,7 @@ const EMPTY_ENTRY = {
   end_time: '',
   notes: '',
   session_type: 'double',
+  room: '',
 }
 
 const EMPTY_CLASS = {
@@ -71,6 +73,28 @@ const EMPTY_CLASS = {
   academic_year: new Date().getFullYear(),
   term: 'Term 1',
   class_time: '9:00 AM',
+}
+
+// One scheduled session within an "Add Classes" row (day/time/room). A class
+// can meet several times a week, so each row holds a list of these.
+const EMPTY_SESSION = {
+  day_of_week: 'Monday',
+  start_time: '',
+  session_type: 'double',
+  end_time: '', // only used when session_type === 'custom'
+  room: '',
+}
+
+// One row in the combined "Add Classes" form — a new class plus all the
+// sessions it meets each week.
+const EMPTY_CLASS_ROW = {
+  class_name: '',
+  subject: '',
+  grade_level: '',
+  student_count: 25,
+  proficiency: 'Mixed proficiency',
+  standard_session_length: 60,
+  sessions: [{ ...EMPTY_SESSION }],
 }
 
 // TIME (HH:MM:SS) from DB -> HH:MM for the <input type="time">
@@ -89,6 +113,11 @@ const fmtTime = (mins) =>
   ).padStart(2, '0')}`
 const fmtHour = (h) => `${String(h).padStart(2, '0')}:00`
 const multiplierFor = (t) => (t === 'double' ? 2 : t === 'triple' ? 3 : 1)
+
+// A class created via quick-add starts unconfirmed (details_confirmed = 0);
+// the "Finish setup" marker clears once the teacher saves it in the Edit form,
+// which sets details_confirmed = 1 — regardless of the field values.
+const classNeedsDetails = (c) => c && !Number(c.details_confirmed)
 
 export default function TeacherTimetable() {
   const { enqueueSnackbar } = useSnackbar()
@@ -111,6 +140,11 @@ export default function TeacherTimetable() {
   const [classDialog, setClassDialog] = useState(false)
   const [editingClass, setEditingClass] = useState(null)
   const [classForm, setClassForm] = useState(EMPTY_CLASS)
+
+  // Combined "Add Classes" multi-row state (create + place several at once)
+  const [classRows, setClassRows] = useState([{ ...EMPTY_CLASS_ROW }])
+  const [creatingRows, setCreatingRows] = useState(false)
+  const [rowsResult, setRowsResult] = useState(null)
 
   // Timetable import dialog
   const [importOpen, setImportOpen] = useState(false)
@@ -142,12 +176,18 @@ export default function TeacherTimetable() {
     setSearchParams(searchParams, { replace: true })
   }, [classes, searchParams])
 
-  // Auto-open the Manage Classes dialog when arriving with ?manageClasses=1
-  // (from the dashboard empty-state CTAs). Independents only — school-linked
-  // teachers can't manage classes, so for them it just lands on the timetable.
+  // Auto-open the combined Add Classes dialog when arriving with
+  // ?manageClasses=1 (from the dashboard empty-state CTAs). Independents only —
+  // school-linked teachers can't manage classes, so for them it just lands on
+  // the timetable.
   useEffect(() => {
     if (searchParams.get('manageClasses') !== '1') return
-    if (canEdit) setClassDialog(true)
+    if (canEdit) {
+      setEditingClass(null)
+      setClassRows([{ ...EMPTY_CLASS_ROW }])
+      setRowsResult(null)
+      setClassDialog(true)
+    }
     searchParams.delete('manageClasses')
     setSearchParams(searchParams, { replace: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -235,6 +275,7 @@ export default function TeacherTimetable() {
       end_time: trimTime(entry.end_time),
       notes: entry.notes || '',
       session_type: entry.session_type || 'double',
+      room: entry.room || '',
     })
     setEntryDialog(true)
   }
@@ -301,6 +342,7 @@ export default function TeacherTimetable() {
         end_time: fmtTime(start + durationMin),
         notes: entry.notes || '',
         session_type: entry.session_type || 'double',
+        room: entry.room || '',
       })
       enqueueSnackbar('Class duplicated', { variant: 'success' })
       fetchData()
@@ -343,6 +385,7 @@ export default function TeacherTimetable() {
           end_time,
           notes: entryForm.notes,
           session_type: entryForm.session_type,
+          room: entryForm.room,
         })
         enqueueSnackbar('Schedule updated', { variant: 'success' })
       } else {
@@ -371,9 +414,20 @@ export default function TeacherTimetable() {
   }
 
   // ---------- Class handlers ----------
-  const openAddClass = () => {
+  const closeClassDialog = () => {
+    setClassDialog(false)
     setEditingClass(null)
     setClassForm(EMPTY_CLASS)
+    setClassRows([{ ...EMPTY_CLASS_ROW }])
+    setRowsResult(null)
+  }
+
+  // Open the combined modal in "add" mode (multi-row create + schedule).
+  const openAddClasses = () => {
+    setEditingClass(null)
+    setClassForm(EMPTY_CLASS)
+    setClassRows([{ ...EMPTY_CLASS_ROW }])
+    setRowsResult(null)
     setClassDialog(true)
   }
 
@@ -395,18 +449,15 @@ export default function TeacherTimetable() {
     setClassDialog(true)
   }
 
+  // Save an edit to an existing class (create now happens via the multi-row
+  // flow below).
   const saveClass = async () => {
     try {
-      if (editingClass) {
-        await toolAxios.put(
-          `/api/timetables/classes/${editingClass.id}`,
-          classForm,
-        )
-        enqueueSnackbar('Class updated', { variant: 'success' })
-      } else {
-        await toolAxios.post('/api/timetables/classes', classForm)
-        enqueueSnackbar('Class created', { variant: 'success' })
-      }
+      await toolAxios.put(
+        `/api/timetables/classes/${editingClass.id}`,
+        classForm,
+      )
+      enqueueSnackbar('Class updated', { variant: 'success' })
       setEditingClass(null)
       setClassForm(EMPTY_CLASS)
       fetchData()
@@ -429,6 +480,185 @@ export default function TeacherTimetable() {
           'Failed to delete class. It may be scheduled on your timetable.',
         { variant: 'error' },
       )
+    }
+  }
+
+  // ---- Combined "Add Classes" row helpers ----
+  const updateRow = (i, field, value) =>
+    setClassRows((rows) =>
+      rows.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)),
+    )
+
+  const addRow = () =>
+    setClassRows((rows) => [
+      ...rows,
+      { ...EMPTY_CLASS_ROW, sessions: [{ ...EMPTY_SESSION }] },
+    ])
+
+  const removeRow = (i) =>
+    setClassRows((rows) =>
+      rows.length > 1 ? rows.filter((_, idx) => idx !== i) : rows,
+    )
+
+  // ---- Per-session helpers (a class row holds one or more sessions) ----
+  const updateSession = (i, si, field, value) =>
+    setClassRows((rows) =>
+      rows.map((r, idx) =>
+        idx === i
+          ? {
+              ...r,
+              sessions: r.sessions.map((s, sIdx) =>
+                sIdx === si ? { ...s, [field]: value } : s,
+              ),
+            }
+          : r,
+      ),
+    )
+
+  const addSession = (i) =>
+    setClassRows((rows) =>
+      rows.map((r, idx) =>
+        idx === i
+          ? { ...r, sessions: [...r.sessions, { ...EMPTY_SESSION }] }
+          : r,
+      ),
+    )
+
+  const removeSession = (i, si) =>
+    setClassRows((rows) =>
+      rows.map((r, idx) =>
+        idx === i && r.sessions.length > 1
+          ? { ...r, sessions: r.sessions.filter((_, sIdx) => sIdx !== si) }
+          : r,
+      ),
+    )
+
+  // End time for one session: derived from its start + duration (single/double/
+  // triple × the class's session length), or the user's end for custom.
+  const sessionEndTime = (row, session) => {
+    if (!session.start_time) return ''
+    if (session.session_type === 'custom') return session.end_time
+    const len = parseInt(row.standard_session_length, 10) || 60
+    return fmtTime(
+      toMinutes(session.start_time) + multiplierFor(session.session_type) * len,
+    )
+  }
+
+  const sessionValid = (row, session) =>
+    !!session.start_time &&
+    (session.session_type !== 'custom' ||
+      (session.end_time &&
+        toMinutes(session.end_time) > toMinutes(session.start_time)))
+
+  const rowValid = (row) =>
+    row.class_name.trim() &&
+    row.subject.trim() &&
+    row.grade_level.trim() &&
+    row.sessions.some((s) => sessionValid(row, s))
+
+  // Create each new class and place it on the timetable, in one action.
+  const createAndScheduleRows = async () => {
+    const valid = classRows.filter(rowValid)
+    if (valid.length === 0) {
+      enqueueSnackbar(
+        'Add at least one class with a name, subject, grade and start time.',
+        { variant: 'warning' },
+      )
+      return
+    }
+
+    setCreatingRows(true)
+    const results = []
+
+    for (const row of valid) {
+      const label = row.class_name.trim()
+      try {
+        const len = parseInt(row.standard_session_length, 10) || 60
+        const firstType =
+          row.sessions.find((s) => sessionValid(row, s))?.session_type ||
+          'double'
+        const createRes = await toolAxios.post('/api/timetables/classes', {
+          class_name: row.class_name.trim(),
+          subject: row.subject.trim(),
+          grade_level: row.grade_level.trim(),
+          student_count: parseInt(row.student_count, 10) || 25,
+          proficiency: row.proficiency || 'Mixed proficiency',
+          standard_session_length: len,
+          session_type: firstType === 'custom' ? 'double' : firstType,
+          academic_year: new Date().getFullYear(),
+          term: 'Term 1',
+          class_time: '9:00 AM',
+        })
+
+        const newId = createRes.data?.data?.id
+        if (!newId) {
+          results.push({
+            label,
+            status: 'class_only',
+            msg: "created, but its sessions couldn't be added",
+          })
+          continue
+        }
+
+        // Schedule each valid session for this class.
+        const sessions = row.sessions.filter((s) => sessionValid(row, s))
+        let scheduled = 0
+        let lastErr = ''
+        for (const s of sessions) {
+          try {
+            await toolAxios.post('/api/timetables', {
+              class_id: newId,
+              day_of_week: s.day_of_week,
+              start_time: s.start_time,
+              end_time: sessionEndTime(row, s),
+              notes: '',
+              session_type: s.session_type,
+              room: s.room || '',
+            })
+            scheduled++
+          } catch (schedErr) {
+            lastErr = schedErr.response?.data?.error || ''
+          }
+        }
+
+        if (scheduled === sessions.length) {
+          results.push({ label, status: 'ok', count: scheduled })
+        } else if (scheduled > 0) {
+          results.push({
+            label,
+            status: 'partial',
+            count: scheduled,
+            total: sessions.length,
+            msg: lastErr || "some sessions couldn't be placed",
+          })
+        } else {
+          results.push({
+            label,
+            status: 'class_only',
+            msg: lastErr || "created, but its sessions couldn't be placed",
+          })
+        }
+      } catch (err) {
+        results.push({
+          label,
+          status: 'failed',
+          msg: err.response?.data?.error || 'could not be created',
+        })
+      }
+    }
+
+    setCreatingRows(false)
+    setRowsResult(results)
+    setClassRows([{ ...EMPTY_CLASS_ROW, sessions: [{ ...EMPTY_SESSION }] }])
+    await fetchData()
+
+    const okCount = results.filter(
+      (r) => r.status === 'ok' || r.status === 'partial',
+    ).length
+    if (okCount > 0) {
+      enqueueSnackbar(`Added ${okCount} class(es) to your timetable!`, {
+        variant: 'success',
+      })
     }
   }
 
@@ -557,6 +787,7 @@ export default function TeacherTimetable() {
         end_time: endStr,
         notes: d.entry.notes || '',
         session_type: d.entry.session_type || 'double',
+        room: d.entry.room || '',
       })
       enqueueSnackbar('Class moved', { variant: 'success' })
     } catch (err) {
@@ -609,6 +840,17 @@ export default function TeacherTimetable() {
       entryForm.end_time &&
       toMinutes(entryForm.end_time) > toMinutes(entryForm.start_time))
 
+  const validRowCount = classRows.filter(rowValid).length
+
+  // In the Edit Class form, grey out + flag the three fields that quick-add
+  // leaves on defaults, until the teacher reviews them (class still unconfirmed).
+  const editNeedsReview = classNeedsDetails(editingClass)
+  const studentsIsDefault =
+    editNeedsReview && Number(classForm.student_count) === 25
+  const proficiencyIsDefault =
+    editNeedsReview &&
+    (!classForm.proficiency || classForm.proficiency === 'Mixed proficiency')
+
   return (
     <Page title="Timetable | Umbrelytics">
       <Container maxWidth="xl">
@@ -638,9 +880,9 @@ export default function TeacherTimetable() {
               <Button
                 variant="outlined"
                 startIcon={<SchoolIcon />}
-                onClick={() => setClassDialog(true)}
+                onClick={openAddClasses}
               >
-                Manage Classes
+                Add Classes
               </Button>
               <Button
                 variant="contained"
@@ -882,6 +1124,9 @@ export default function TeacherTimetable() {
                               userSelect: 'none',
                               cursor: canEdit ? 'grab' : 'default',
                               opacity: beingDragged ? 0.4 : 1,
+                              ...(classNeedsDetails(entry) && {
+                                borderLeft: '4px solid #f59e0b',
+                              }),
                             }}
                             style={{ top, height }}
                           >
@@ -904,6 +1149,31 @@ export default function TeacherTimetable() {
                                 <FileCopyIcon style={{ fontSize: 16 }} />
                               </IconButton>
                             )}
+                            {canEdit && classNeedsDetails(entry) && (
+                              <IconButton
+                                size="small"
+                                title="Finish setup: add proficiency and class size"
+                                aria-label="Finish setup"
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onClick={() => {
+                                  const full = classes.find(
+                                    (c) =>
+                                      String(c.id) === String(entry.class_id),
+                                  )
+                                  if (full) openEditClass(full)
+                                }}
+                                sx={{
+                                  position: 'absolute',
+                                  top: 2,
+                                  right: 22,
+                                  zIndex: 2,
+                                  color: '#f59e0b',
+                                  p: 0.25,
+                                }}
+                              >
+                                <WarnIcon style={{ fontSize: 16 }} />
+                              </IconButton>
+                            )}
                             <Typography
                               variant="caption"
                               sx={{
@@ -912,7 +1182,7 @@ export default function TeacherTimetable() {
                                 whiteSpace: 'nowrap',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
-                                pr: 2.5,
+                                pr: classNeedsDetails(entry) ? 5 : 2.5,
                               }}
                             >
                               {entry.class_name}
@@ -1105,8 +1375,7 @@ export default function TeacherTimetable() {
 
             {!editingEntry && classes.length === 0 && (
               <Alert severity="info">
-                You have no classes yet. Use “Manage Classes” to create one
-                first.
+                You have no classes yet. Use “Add Classes” to create one first.
               </Alert>
             )}
 
@@ -1187,6 +1456,16 @@ export default function TeacherTimetable() {
 
             <TextField
               fullWidth
+              label="Room (optional)"
+              placeholder="e.g., 2D or Lab 1"
+              value={entryForm.room}
+              onChange={(e) =>
+                setEntryForm({ ...entryForm, room: e.target.value })
+              }
+            />
+
+            <TextField
+              fullWidth
               label="Notes (optional)"
               value={entryForm.notes}
               onChange={(e) =>
@@ -1214,14 +1493,10 @@ export default function TeacherTimetable() {
         </DialogActions>
       </Dialog>
 
-      {/* ---------- Class Management Dialog ---------- */}
+      {/* ---------- Combined Add Classes / Edit Class Dialog ---------- */}
       <Dialog
         open={classDialog}
-        onClose={() => {
-          setClassDialog(false)
-          setEditingClass(null)
-          setClassForm(EMPTY_CLASS)
-        }}
+        onClose={closeClassDialog}
         maxWidth="md"
         fullWidth
       >
@@ -1231,118 +1506,123 @@ export default function TeacherTimetable() {
             justifyContent="space-between"
             alignItems="center"
           >
-            {editingClass ? 'Edit Class' : 'Manage Your Classes'}
-            <IconButton
-              onClick={() => {
-                setClassDialog(false)
-                setEditingClass(null)
-                setClassForm(EMPTY_CLASS)
-              }}
-            >
+            {editingClass ? 'Edit Class' : 'Add Classes'}
+            <IconButton onClick={closeClassDialog}>
               <CloseIcon />
             </IconButton>
           </Stack>
         </DialogTitle>
         <DialogContent dividers>
-          {/* Form */}
-          <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Class Name"
-                value={classForm.class_name}
-                onChange={(e) =>
-                  setClassForm({ ...classForm, class_name: e.target.value })
-                }
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Subject"
-                value={classForm.subject}
-                onChange={(e) =>
-                  setClassForm({ ...classForm, subject: e.target.value })
-                }
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Grade Level"
-                value={classForm.grade_level}
-                onChange={(e) =>
-                  setClassForm({ ...classForm, grade_level: e.target.value })
-                }
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                type="number"
-                label="Student Count"
-                value={classForm.student_count}
-                onChange={(e) =>
-                  setClassForm({
-                    ...classForm,
-                    student_count: parseInt(e.target.value, 10) || 0,
-                  })
-                }
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Room"
-                value={classForm.room}
-                onChange={(e) =>
-                  setClassForm({ ...classForm, room: e.target.value })
-                }
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                type="number"
-                label="Session Length (minutes)"
-                value={classForm.standard_session_length}
-                onChange={(e) =>
-                  setClassForm({
-                    ...classForm,
-                    standard_session_length: parseInt(e.target.value, 10) || 60,
-                  })
-                }
-                inputProps={{ min: 10, max: 120 }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                select
-                fullWidth
-                label="Session Type"
-                value={classForm.session_type}
-                onChange={(e) =>
-                  setClassForm({ ...classForm, session_type: e.target.value })
-                }
-              >
-                <MenuItem value="single">Single</MenuItem>
-                <MenuItem value="double">Double</MenuItem>
-                <MenuItem value="triple">Triple</MenuItem>
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Proficiency"
-                value={classForm.proficiency}
-                onChange={(e) =>
-                  setClassForm({ ...classForm, proficiency: e.target.value })
-                }
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <Stack direction="row" spacing={1.5} justifyContent="flex-end">
-                {editingClass && (
+          {editingClass ? (
+            /* ---- Single-class edit form ---- */
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Class Name"
+                  value={classForm.class_name}
+                  onChange={(e) =>
+                    setClassForm({ ...classForm, class_name: e.target.value })
+                  }
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Subject"
+                  value={classForm.subject}
+                  onChange={(e) =>
+                    setClassForm({ ...classForm, subject: e.target.value })
+                  }
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Grade Level"
+                  value={classForm.grade_level}
+                  onChange={(e) =>
+                    setClassForm({ ...classForm, grade_level: e.target.value })
+                  }
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="Student Count"
+                  value={classForm.student_count}
+                  onChange={(e) =>
+                    setClassForm({
+                      ...classForm,
+                      student_count: parseInt(e.target.value, 10) || 0,
+                    })
+                  }
+                  inputProps={{
+                    style: studentsIsDefault ? { color: '#9e9e9e' } : undefined,
+                  }}
+                  helperText={
+                    studentsIsDefault
+                      ? '⚠ Default (25) — update if needed'
+                      : undefined
+                  }
+                  FormHelperTextProps={{ sx: { color: '#b26a00', ml: 0 } }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="Session Length (minutes)"
+                  value={classForm.standard_session_length}
+                  onChange={(e) =>
+                    setClassForm({
+                      ...classForm,
+                      standard_session_length:
+                        parseInt(e.target.value, 10) || 60,
+                    })
+                  }
+                  inputProps={{ min: 10, max: 120 }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Session Type"
+                  value={classForm.session_type}
+                  onChange={(e) =>
+                    setClassForm({ ...classForm, session_type: e.target.value })
+                  }
+                >
+                  <MenuItem value="single">Single</MenuItem>
+                  <MenuItem value="double">Double</MenuItem>
+                  <MenuItem value="triple">Triple</MenuItem>
+                </TextField>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Proficiency"
+                  value={classForm.proficiency}
+                  onChange={(e) =>
+                    setClassForm({ ...classForm, proficiency: e.target.value })
+                  }
+                  inputProps={{
+                    style: proficiencyIsDefault
+                      ? { color: '#9e9e9e' }
+                      : undefined,
+                  }}
+                  helperText={
+                    proficiencyIsDefault
+                      ? '⚠ Default — update if needed'
+                      : undefined
+                  }
+                  FormHelperTextProps={{ sx: { color: '#b26a00', ml: 0 } }}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <Stack direction="row" spacing={1.5} justifyContent="flex-end">
                   <Button
                     color="inherit"
                     onClick={() => {
@@ -1352,22 +1632,349 @@ export default function TeacherTimetable() {
                   >
                     Cancel Edit
                   </Button>
-                )}
+                  <Button
+                    variant="contained"
+                    sx={{ color: '#fff' }}
+                    onClick={saveClass}
+                    disabled={
+                      !classForm.class_name ||
+                      !classForm.subject ||
+                      !classForm.grade_level
+                    }
+                  >
+                    Update Class
+                  </Button>
+                </Stack>
+              </Grid>
+            </Grid>
+          ) : (
+            /* ---- Multi-row create + schedule ---- */
+            <Box sx={{ mb: 3 }}>
+              <Typography
+                variant="body2"
+                sx={{ color: 'text.secondary', mb: 0.5 }}
+              >
+                Create one or more classes and drop each onto your timetable at
+                the same time. Add more sessions later from the grid.
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{ color: 'text.secondary', mb: 2, display: 'block' }}
+              >
+                Set each session’s room above. Proficiency and class size start
+                with defaults — set them per class via Edit (look for the amber
+                “Finish setup” marker).
+              </Typography>
+
+              <Stack spacing={2}>
+                {classRows.map((row, i) => (
+                  <Paper
+                    key={i}
+                    variant="outlined"
+                    sx={{ p: 2, bgcolor: 'grey.50' }}
+                  >
+                    <Stack
+                      direction="row"
+                      justifyContent="space-between"
+                      alignItems="center"
+                      sx={{ mb: 1 }}
+                    >
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          fontWeight: 600,
+                          color: 'text.secondary',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        Class {i + 1}
+                      </Typography>
+                      {classRows.length > 1 && (
+                        <Button
+                          size="small"
+                          color="error"
+                          onClick={() => removeRow(i)}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </Stack>
+
+                    <Grid container spacing={1.5}>
+                      <Grid item xs={12} sm={4}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Class name"
+                          value={row.class_name}
+                          onChange={(e) =>
+                            updateRow(i, 'class_name', e.target.value)
+                          }
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Subject"
+                          value={row.subject}
+                          onChange={(e) =>
+                            updateRow(i, 'subject', e.target.value)
+                          }
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Grade"
+                          value={row.grade_level}
+                          onChange={(e) =>
+                            updateRow(i, 'grade_level', e.target.value)
+                          }
+                        />
+                      </Grid>
+                    </Grid>
+
+                    {/* Class-level session length */}
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        mt: 1.5,
+                      }}
+                    >
+                      <Typography
+                        variant="caption"
+                        sx={{ color: 'text.secondary' }}
+                      >
+                        Session length (min)
+                      </Typography>
+                      <TextField
+                        size="small"
+                        type="number"
+                        value={row.standard_session_length}
+                        onChange={(e) =>
+                          updateRow(
+                            i,
+                            'standard_session_length',
+                            parseInt(e.target.value, 10) || '',
+                          )
+                        }
+                        inputProps={{ min: 10, max: 120 }}
+                        sx={{ width: 110 }}
+                      />
+                    </Box>
+
+                    {/* Sessions — one or more per week for this class */}
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        display: 'block',
+                        fontWeight: 600,
+                        color: 'text.secondary',
+                        textTransform: 'uppercase',
+                        mt: 2,
+                        mb: 0.5,
+                      }}
+                    >
+                      Sessions
+                    </Typography>
+                    <Stack spacing={1.5}>
+                      {row.sessions.map((session, si) => (
+                        <Grid
+                          container
+                          spacing={1}
+                          alignItems="center"
+                          key={si}
+                        >
+                          <Grid item xs={6} sm={2}>
+                            <TextField
+                              select
+                              fullWidth
+                              size="small"
+                              label="Day"
+                              value={session.day_of_week}
+                              onChange={(e) =>
+                                updateSession(
+                                  i,
+                                  si,
+                                  'day_of_week',
+                                  e.target.value,
+                                )
+                              }
+                            >
+                              {DAYS.map((day) => (
+                                <MenuItem key={day} value={day}>
+                                  {day}
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                          </Grid>
+                          <Grid item xs={6} sm={2}>
+                            <TextField
+                              fullWidth
+                              size="small"
+                              type="time"
+                              label="Start"
+                              InputLabelProps={{ shrink: true }}
+                              value={session.start_time}
+                              onChange={(e) =>
+                                updateSession(
+                                  i,
+                                  si,
+                                  'start_time',
+                                  e.target.value,
+                                )
+                              }
+                            />
+                          </Grid>
+                          <Grid item xs={6} sm={2}>
+                            <TextField
+                              select
+                              fullWidth
+                              size="small"
+                              label="Duration"
+                              value={session.session_type}
+                              onChange={(e) =>
+                                updateSession(
+                                  i,
+                                  si,
+                                  'session_type',
+                                  e.target.value,
+                                )
+                              }
+                            >
+                              <MenuItem value="single">Single</MenuItem>
+                              <MenuItem value="double">Double</MenuItem>
+                              <MenuItem value="triple">Triple</MenuItem>
+                              <MenuItem value="custom">Custom</MenuItem>
+                            </TextField>
+                          </Grid>
+                          <Grid item xs={6} sm={2}>
+                            {session.session_type === 'custom' ? (
+                              <TextField
+                                fullWidth
+                                size="small"
+                                type="time"
+                                label="End"
+                                InputLabelProps={{ shrink: true }}
+                                value={session.end_time}
+                                onChange={(e) =>
+                                  updateSession(
+                                    i,
+                                    si,
+                                    'end_time',
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            ) : (
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="End"
+                                InputLabelProps={{ shrink: true }}
+                                value={sessionEndTime(row, session)}
+                                disabled
+                              />
+                            )}
+                          </Grid>
+                          <Grid item xs={10} sm={3}>
+                            <TextField
+                              fullWidth
+                              size="small"
+                              label="Room"
+                              placeholder="e.g., 2D"
+                              value={session.room}
+                              onChange={(e) =>
+                                updateSession(i, si, 'room', e.target.value)
+                              }
+                            />
+                          </Grid>
+                          <Grid item xs={2} sm={1} sx={{ textAlign: 'center' }}>
+                            {row.sessions.length > 1 && (
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => removeSession(i, si)}
+                                title="Remove session"
+                                aria-label="Remove session"
+                              >
+                                <CloseIcon fontSize="small" />
+                              </IconButton>
+                            )}
+                          </Grid>
+                        </Grid>
+                      ))}
+                    </Stack>
+
+                    <Button
+                      size="small"
+                      onClick={() => addSession(i)}
+                      sx={{ mt: 1 }}
+                    >
+                      + Add session
+                    </Button>
+                  </Paper>
+                ))}
+              </Stack>
+
+              <Button size="small" onClick={addRow} sx={{ mt: 1.5 }}>
+                + Add another class
+              </Button>
+
+              {rowsResult && (
+                <Box sx={{ mt: 1.5 }}>
+                  {rowsResult.map((r, i) => (
+                    <Typography
+                      key={i}
+                      variant="caption"
+                      sx={{
+                        display: 'block',
+                        color:
+                          r.status === 'ok'
+                            ? 'success.main'
+                            : r.status === 'class_only'
+                            ? 'warning.main'
+                            : 'error.main',
+                      }}
+                    >
+                      {r.status === 'ok'
+                        ? `✓ ${r.label} created and scheduled`
+                        : r.status === 'class_only'
+                        ? `⚠ ${r.label} — ${r.msg}`
+                        : `✕ ${r.label} — ${r.msg}`}
+                    </Typography>
+                  ))}
+                </Box>
+              )}
+
+              <Stack
+                direction="row"
+                spacing={1.5}
+                justifyContent="flex-end"
+                sx={{ mt: 2 }}
+              >
+                <Button color="inherit" onClick={closeClassDialog}>
+                  Done
+                </Button>
                 <Button
                   variant="contained"
                   sx={{ color: '#fff' }}
-                  onClick={saveClass}
-                  disabled={
-                    !classForm.class_name ||
-                    !classForm.subject ||
-                    !classForm.grade_level
-                  }
+                  onClick={createAndScheduleRows}
+                  disabled={creatingRows || validRowCount === 0}
                 >
-                  {editingClass ? 'Update Class' : 'Create Class'}
+                  {creatingRows
+                    ? 'Creating...'
+                    : `Create & Schedule${
+                        validRowCount ? ` ${validRowCount}` : ''
+                      }`}
                 </Button>
               </Stack>
-            </Grid>
-          </Grid>
+            </Box>
+          )}
 
           <Divider sx={{ mb: 2 }} />
 
@@ -1396,9 +2003,27 @@ export default function TeacherTimetable() {
                   }}
                 >
                   <Box>
-                    <Typography variant="subtitle2">
-                      {cls.class_name}
-                    </Typography>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Typography variant="subtitle2">
+                        {cls.class_name}
+                      </Typography>
+                      {classNeedsDetails(cls) && (
+                        <Chip
+                          icon={<WarnIcon style={{ fontSize: 13 }} />}
+                          label="Finish setup"
+                          size="small"
+                          title="Add proficiency and class size"
+                          sx={{
+                            height: 18,
+                            fontSize: 10,
+                            fontWeight: 600,
+                            bgcolor: '#fff3e0',
+                            color: '#b26a00',
+                            '& .MuiChip-icon': { color: '#b26a00', ml: 0.5 },
+                          }}
+                        />
+                      )}
+                    </Stack>
                     <Typography
                       variant="caption"
                       sx={{ color: 'text.secondary' }}
