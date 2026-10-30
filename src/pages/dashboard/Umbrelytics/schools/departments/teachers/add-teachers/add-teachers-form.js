@@ -47,7 +47,6 @@ import { PATH_DASHBOARD } from 'src/routes/paths'
 import { useNavigate } from 'react-router'
 import axios from 'axios'
 import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
-import { storage } from 'src/firebase/Constant'
 import { Link as RouterLink } from 'react-router-dom'
 import toolAxios from 'src/_apis_/toolAxios'
 import lockFill from '@iconify/icons-eva/lock-fill'
@@ -391,44 +390,38 @@ export default function AddTeacherForm({
     (acceptedFiles) => {
       const file = acceptedFiles[0]
       if (file) {
-        uploadImgToFirebase(file)
-        // setFieldValue('avatarUrl', {
-        //   ...file,
-        //   preview: URL.createObjectURL(file)
-        // });
+        uploadImgToBackend(file)
       }
     },
     [setFieldValue],
   )
 
-  const uploadImgToFirebase = (file) => {
-    // Create a storage reference
-    const storageRef = storage.ref(`images/${file.name}`)
+  // Upload the avatar through our backend to Cloudflare R2 (replaces the old
+  // Firebase upload). On success, store the returned public URL in the form —
+  // it's sent as values.avatarUrl on submit and saved to teacher.image, exactly
+  // as the Firebase URL used to be.
+  const uploadImgToBackend = async (file) => {
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('folder', 'avatars')
 
-    // Upload the file
-    const uploadTask = storageRef.put(file)
+      const res = await axios.post(
+        `${REST_API_END_POINT}upload/image`,
+        formData,
+      )
 
-    // Monitor upload progress
-    uploadTask.on(
-      'state_changed',
-      (snapshot) => {
-        // Observe state change events such as progress, pause, and resume
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-        console.log('Upload is ' + progress + '% done')
-      },
-      (error) => {
-        // Handle unsuccessful uploads
-        console.error('Upload failed:', error)
-      },
-      () => {
-        // Handle successful uploads on complete
-        uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
-          console.log('File available at', downloadURL)
-
-          setFieldValue('avatarUrl', downloadURL)
+      if (res.data.status === 1) {
+        setFieldValue('avatarUrl', res.data.url)
+      } else {
+        enqueueSnackbar(res.data.message || 'Image upload failed', {
+          variant: 'error',
         })
-      },
-    )
+      }
+    } catch (error) {
+      console.error('Upload failed:', error)
+      enqueueSnackbar('Image upload failed', { variant: 'error' })
+    }
   }
 
   // --- Teaching profile (institution, country, location, subjects, grades) ---
