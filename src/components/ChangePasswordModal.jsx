@@ -69,9 +69,10 @@ export default function ChangePasswordModal({ open, onClose }) {
         )
         const status = res.data?.status
         if (status === 1) {
-          enqueueSnackbar('Password changed successfully', {
-            variant: 'success',
-          })
+          enqueueSnackbar(
+            'Password changed — a confirmation email has been sent.',
+            { variant: 'success' },
+          )
           resetForm()
           onClose()
         } else if (status === 2) {

@@ -33,6 +33,7 @@ import Image from '../../../src/images/Teacher1.png'
 import Logo from 'src/components/Logo'
 import Logo1 from 'src/components/Logo/android-chrome-512x512.png'
 import axios from 'axios'
+import toolAxios from 'src/_apis_/toolAxios'
 import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
 
 // ----------------------------------------------------------------------
@@ -88,7 +89,57 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
   const [teacherData, setTeacherData] = useState([])
   const [hodData, setHodData] = useState([])
   const [philosophyModalOpen, setPhilosophyModalOpen] = useState(false)
+  const [hasClasses, setHasClasses] = useState(false)
+  const [classesLoaded, setClassesLoaded] = useState(false)
   const navigate = useNavigate()
+
+  // Onboarding gate: until a teacher has at least one class, the sidebar is
+  // dimmed/disabled (except Dashboard) so they set up classes first.
+  useEffect(() => {
+    const isTeacher = user_type === 4 || user_type === 5
+    if (!isTeacher) {
+      setClassesLoaded(true)
+      return undefined
+    }
+    let active = true
+    const refresh = async () => {
+      let count = 0
+      try {
+        const r = await toolAxios.get('/api/timetables/classes')
+        count = (r.data?.data || []).length
+      } catch (e) {
+        /* ignore */
+      }
+      if (count === 0) {
+        try {
+          const w = await axios.post(
+            `${REST_API_END_POINT}class/get-class-by-teacher-id`,
+            { teacherId: user.teacherId },
+          )
+          if (w.data.status === 1) count = (w.data.data || []).length
+        } catch (e) {
+          /* ignore */
+        }
+      }
+      if (active) {
+        setHasClasses(count > 0)
+        setClassesLoaded(true)
+      }
+    }
+    refresh()
+    // Re-check whenever a class is added/removed, so the menu unlocks/relocks
+    // without a page reload.
+    const onChanged = () => refresh()
+    window.addEventListener('umbrelytics:classes-changed', onChanged)
+    return () => {
+      active = false
+      window.removeEventListener('umbrelytics:classes-changed', onChanged)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const locked =
+    (user_type === 4 || user_type === 5) && classesLoaded && !hasClasses
 
   const fetchSchoolById = async () => {
     await axios
@@ -208,13 +259,20 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
         </RouterLink>
       </Box>
 
-      <NavSection navConfig={sidebarConfig} />
+      <NavSection
+        navConfig={sidebarConfig}
+        locked={locked}
+        lockExempt={['Dashboard']}
+      />
 
       {/* Teaching Philosophy - styled as a nav item */}
       {(user_type === 4 || user_type === 5) && (
         <ListItemStyle
-          onClick={() => setPhilosophyModalOpen(true)}
-          sx={{ cursor: 'pointer' }}
+          onClick={locked ? undefined : () => setPhilosophyModalOpen(true)}
+          sx={{
+            cursor: locked ? 'default' : 'pointer',
+            ...(locked && { opacity: 0.4, pointerEvents: 'none' }),
+          }}
         >
           <ListItemIconStyle>{getIcon('ic_blog')}</ListItemIconStyle>
           <ListItemText disableTypography primary="Philosophy" />

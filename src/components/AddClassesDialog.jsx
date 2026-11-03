@@ -1,0 +1,773 @@
+import { useState, useEffect } from 'react'
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  IconButton,
+  Typography,
+  Stack,
+  Box,
+  Grid,
+  TextField,
+  MenuItem,
+  Button,
+  Paper,
+  Chip,
+  Divider,
+} from '@material-ui/core'
+import {
+  Close as CloseIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  ReportProblemOutlined as WarnIcon,
+} from '@material-ui/icons'
+import { useSnackbar } from 'notistack'
+import toolAxios from 'src/_apis_/toolAxios'
+
+// Shared "Add Classes" dialog — create one or more classes and place all of
+// their weekly sessions in one action. Used by both the timetable page and the
+// dashboard empty-state CTA, so the create flow lives in exactly one place.
+//
+// Props:
+//   open            — dialog visibility
+//   onClose()       — close handler
+//   onAdded()       — called after a successful create (parent refetches)
+//   closeOnSuccess  — close the dialog once everything was added cleanly
+//   showExisting    — render the "Your Classes" list below the form
+//   classes         — existing classes (for the list)
+//   onEditClass(c)  — open the edit flow for a class (from the list)
+//   onDeleteClass(id)
+
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+
+const EMPTY_SESSION = {
+  day_of_week: 'Monday',
+  start_time: '',
+  session_type: 'double',
+  end_time: '',
+  room: '',
+}
+
+const EMPTY_CLASS_ROW = {
+  class_name: '',
+  subject: '',
+  grade_level: '',
+  student_count: 25,
+  proficiency: 'Mixed proficiency',
+  standard_session_length: 60,
+  sessions: [{ ...EMPTY_SESSION }],
+}
+
+const toMinutes = (t) => {
+  if (!t) return 0
+  const [h, m] = String(t).slice(0, 5).split(':').map(Number)
+  return h * 60 + m
+}
+const fmtTime = (mins) =>
+  `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(
+    mins % 60,
+  ).padStart(2, '0')}`
+const multiplierFor = (t) => (t === 'double' ? 2 : t === 'triple' ? 3 : 1)
+
+// Quick-added classes start unconfirmed; the chip clears once reviewed via Edit.
+const classNeedsDetails = (c) => c && !Number(c.details_confirmed)
+
+export default function AddClassesDialog({
+  open,
+  onClose,
+  onAdded,
+  closeOnSuccess = false,
+  showExisting = false,
+  classes = [],
+  onEditClass,
+  onDeleteClass,
+}) {
+  const { enqueueSnackbar } = useSnackbar()
+  const [classRows, setClassRows] = useState([{ ...EMPTY_CLASS_ROW }])
+  const [creatingRows, setCreatingRows] = useState(false)
+  const [rowsResult, setRowsResult] = useState(null)
+
+  // Fresh form each time the dialog is opened.
+  useEffect(() => {
+    if (open) {
+      setClassRows([{ ...EMPTY_CLASS_ROW, sessions: [{ ...EMPTY_SESSION }] }])
+      setRowsResult(null)
+    }
+  }, [open])
+
+  // ---- Class-row helpers ----
+  const updateRow = (i, field, value) =>
+    setClassRows((rows) =>
+      rows.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)),
+    )
+
+  const addRow = () =>
+    setClassRows((rows) => [
+      ...rows,
+      { ...EMPTY_CLASS_ROW, sessions: [{ ...EMPTY_SESSION }] },
+    ])
+
+  const removeRow = (i) =>
+    setClassRows((rows) =>
+      rows.length > 1 ? rows.filter((_, idx) => idx !== i) : rows,
+    )
+
+  // ---- Per-session helpers ----
+  const updateSession = (i, si, field, value) =>
+    setClassRows((rows) =>
+      rows.map((r, idx) =>
+        idx === i
+          ? {
+              ...r,
+              sessions: r.sessions.map((s, sIdx) =>
+                // Editing a session clears its last conflict message.
+                sIdx === si ? { ...s, [field]: value, error: undefined } : s,
+              ),
+            }
+          : r,
+      ),
+    )
+
+  const addSession = (i) =>
+    setClassRows((rows) =>
+      rows.map((r, idx) =>
+        idx === i
+          ? { ...r, sessions: [...r.sessions, { ...EMPTY_SESSION }] }
+          : r,
+      ),
+    )
+
+  const removeSession = (i, si) =>
+    setClassRows((rows) =>
+      rows.map((r, idx) =>
+        idx === i && r.sessions.length > 1
+          ? { ...r, sessions: r.sessions.filter((_, sIdx) => sIdx !== si) }
+          : r,
+      ),
+    )
+
+  const sessionEndTime = (row, session) => {
+    if (!session.start_time) return ''
+    if (session.session_type === 'custom') return session.end_time
+    const len = parseInt(row.standard_session_length, 10) || 60
+    return fmtTime(
+      toMinutes(session.start_time) + multiplierFor(session.session_type) * len,
+    )
+  }
+
+  const sessionValid = (row, session) =>
+    !!session.start_time &&
+    (session.session_type !== 'custom' ||
+      (session.end_time &&
+        toMinutes(session.end_time) > toMinutes(session.start_time)))
+
+  const rowValid = (row) =>
+    row.class_name.trim() &&
+    row.subject.trim() &&
+    row.grade_level.trim() &&
+    row.sessions.some((s) => sessionValid(row, s))
+
+  const validRowCount = classRows.filter(rowValid).length
+
+  // Create each class and place all of its valid sessions, in one action.
+  const createAndScheduleRows = async () => {
+    const valid = classRows.filter(rowValid)
+    if (valid.length === 0) {
+      enqueueSnackbar(
+        'Add at least one class with a name, subject, grade and start time.',
+        { variant: 'warning' },
+      )
+      return
+    }
+
+    setCreatingRows(true)
+    const results = []
+    // The rows the form should keep afterward: incomplete rows the user is
+    // still filling in, rows whose class couldn't be created (full retry), and
+    // rows where only some sessions clashed (retry just those). Fully-scheduled
+    // rows are dropped.
+    const nextRows = []
+
+    for (const row of classRows) {
+      // Leave rows the user hasn't finished filling in untouched.
+      if (!rowValid(row)) {
+        nextRows.push(row)
+        continue
+      }
+
+      const label = row.class_name.trim()
+      try {
+        // Reuse the class if it was already created on a previous attempt, so a
+        // retry after a clash never creates a duplicate class.
+        let classId = row.created_id
+        if (!classId) {
+          const len = parseInt(row.standard_session_length, 10) || 60
+          const firstType =
+            row.sessions.find((s) => sessionValid(row, s))?.session_type ||
+            'double'
+          const createRes = await toolAxios.post('/api/timetables/classes', {
+            class_name: row.class_name.trim(),
+            subject: row.subject.trim(),
+            grade_level: row.grade_level.trim(),
+            student_count: parseInt(row.student_count, 10) || 25,
+            proficiency: row.proficiency || 'Mixed proficiency',
+            standard_session_length: len,
+            session_type: firstType === 'custom' ? 'double' : firstType,
+            academic_year: new Date().getFullYear(),
+            term: 'Term 1',
+            class_time: '9:00 AM',
+          })
+          classId = createRes.data?.data?.id
+        }
+
+        if (!classId) {
+          results.push({
+            label,
+            status: 'class_only',
+            msg: "created, but its sessions couldn't be added",
+          })
+          nextRows.push({ ...row }) // allow a full retry
+          continue
+        }
+
+        // Schedule each valid session; keep the ones that fail (e.g. a time
+        // clash) so the teacher can fix just those and resubmit. Successful
+        // sessions are dropped so they're never double-posted.
+        const totalValid = row.sessions.filter((s) =>
+          sessionValid(row, s),
+        ).length
+        const keptSessions = []
+        let scheduled = 0
+        let failed = 0
+        let lastErr = ''
+
+        for (const s of row.sessions) {
+          if (!sessionValid(row, s)) {
+            keptSessions.push({ ...s, error: undefined })
+            continue
+          }
+          try {
+            await toolAxios.post('/api/timetables', {
+              class_id: classId,
+              day_of_week: s.day_of_week,
+              start_time: s.start_time,
+              end_time: sessionEndTime(row, s),
+              notes: '',
+              session_type: s.session_type,
+              room: s.room || '',
+            })
+            scheduled++ // success → drop this session from the form
+          } catch (schedErr) {
+            failed++
+            const msg =
+              schedErr.response?.data?.error ||
+              'could not be placed (time clash?)'
+            lastErr = msg
+            keptSessions.push({ ...s, error: msg })
+          }
+        }
+
+        if (failed === 0) {
+          // Everything landed → this row is done and drops out of the form.
+          results.push({ label, status: 'ok', count: scheduled })
+        } else {
+          results.push({
+            label,
+            status: scheduled > 0 ? 'partial' : 'class_only',
+            count: scheduled,
+            total: totalValid,
+            msg: lastErr,
+          })
+          // Keep the class (already created) and only the unresolved sessions.
+          nextRows.push({
+            ...row,
+            created_id: classId,
+            sessions: keptSessions.length
+              ? keptSessions
+              : [{ ...EMPTY_SESSION }],
+          })
+        }
+      } catch (err) {
+        results.push({
+          label,
+          status: 'failed',
+          msg: err.response?.data?.error || 'could not be created',
+        })
+        nextRows.push({ ...row }) // class creation failed → keep for a full retry
+      }
+    }
+
+    setCreatingRows(false)
+    setRowsResult(results)
+
+    // Reset to a single fresh row only when nothing is left to fix.
+    setClassRows(
+      nextRows.length
+        ? nextRows
+        : [{ ...EMPTY_CLASS_ROW, sessions: [{ ...EMPTY_SESSION }] }],
+    )
+
+    const okCount = results.filter(
+      (r) => r.status === 'ok' || r.status === 'partial',
+    ).length
+    if (okCount > 0) {
+      enqueueSnackbar(`Added ${okCount} class(es) to your timetable!`, {
+        variant: 'success',
+      })
+    }
+
+    if (onAdded) await onAdded()
+
+    // Let the sidebar re-check its onboarding lock without a page reload.
+    window.dispatchEvent(new Event('umbrelytics:classes-changed'))
+
+    // Close automatically only when everything landed cleanly and nothing is
+    // left to retry.
+    const allOk =
+      nextRows.length === 0 &&
+      results.length > 0 &&
+      results.every((r) => r.status === 'ok')
+    if (closeOnSuccess && allOk && onClose) onClose()
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+        >
+          Add Classes
+          <IconButton onClick={onClose}>
+            <CloseIcon />
+          </IconButton>
+        </Stack>
+      </DialogTitle>
+      <DialogContent dividers>
+        <Box sx={{ mb: showExisting ? 3 : 0 }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
+            Create one or more classes and place all of their weekly sessions at
+            once. Use “+ Add session” for a class that meets more than once a
+            week.
+          </Typography>
+          <Typography
+            variant="caption"
+            sx={{ color: 'text.secondary', mb: 2, display: 'block' }}
+          >
+            Set each session’s day, time and room below. Proficiency and class
+            size start with defaults — set them per class via Edit (look for the
+            amber “Finish setup” marker).
+          </Typography>
+
+          <Stack spacing={2}>
+            {classRows.map((row, i) => (
+              <Paper
+                key={i}
+                variant="outlined"
+                sx={{ p: 2, bgcolor: 'grey.50' }}
+              >
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  sx={{ mb: 1 }}
+                >
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontWeight: 600,
+                      color: 'text.secondary',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Class {i + 1}
+                  </Typography>
+                  {classRows.length > 1 && (
+                    <Button
+                      size="small"
+                      color="error"
+                      onClick={() => removeRow(i)}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </Stack>
+
+                {row.created_id && (
+                  <Typography
+                    variant="caption"
+                    sx={{ color: 'warning.main', display: 'block', mb: 1 }}
+                  >
+                    Class created — fix the conflicting session(s) below and
+                    click “Create &amp; Schedule” again.
+                  </Typography>
+                )}
+
+                <Grid container spacing={1.5}>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Class name"
+                      value={row.class_name}
+                      disabled={!!row.created_id}
+                      onChange={(e) =>
+                        updateRow(i, 'class_name', e.target.value)
+                      }
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Subject"
+                      value={row.subject}
+                      disabled={!!row.created_id}
+                      onChange={(e) => updateRow(i, 'subject', e.target.value)}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Grade"
+                      value={row.grade_level}
+                      disabled={!!row.created_id}
+                      onChange={(e) =>
+                        updateRow(i, 'grade_level', e.target.value)
+                      }
+                    />
+                  </Grid>
+                </Grid>
+
+                {/* Class-level session length */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    mt: 1.5,
+                  }}
+                >
+                  <Typography
+                    variant="caption"
+                    sx={{ color: 'text.secondary' }}
+                  >
+                    Session length (min)
+                  </Typography>
+                  <TextField
+                    size="small"
+                    type="number"
+                    value={row.standard_session_length}
+                    disabled={!!row.created_id}
+                    onChange={(e) =>
+                      updateRow(
+                        i,
+                        'standard_session_length',
+                        parseInt(e.target.value, 10) || '',
+                      )
+                    }
+                    inputProps={{ min: 10, max: 120 }}
+                    sx={{ width: 110 }}
+                  />
+                </Box>
+
+                {/* Sessions — one or more per week for this class */}
+                <Typography
+                  variant="caption"
+                  sx={{
+                    display: 'block',
+                    fontWeight: 600,
+                    color: 'text.secondary',
+                    textTransform: 'uppercase',
+                    mt: 2,
+                    mb: 0.5,
+                  }}
+                >
+                  Sessions
+                </Typography>
+                <Stack spacing={1.5}>
+                  {row.sessions.map((session, si) => (
+                    <Box key={si}>
+                      <Grid container spacing={1} alignItems="center">
+                        <Grid item xs={6} sm={2}>
+                          <TextField
+                            select
+                            fullWidth
+                            size="small"
+                            label="Day"
+                            value={session.day_of_week}
+                            onChange={(e) =>
+                              updateSession(
+                                i,
+                                si,
+                                'day_of_week',
+                                e.target.value,
+                              )
+                            }
+                          >
+                            {DAYS.map((day) => (
+                              <MenuItem key={day} value={day}>
+                                {day}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        </Grid>
+                        <Grid item xs={6} sm={2}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            type="time"
+                            label="Start"
+                            InputLabelProps={{ shrink: true }}
+                            value={session.start_time}
+                            onChange={(e) =>
+                              updateSession(i, si, 'start_time', e.target.value)
+                            }
+                          />
+                        </Grid>
+                        <Grid item xs={6} sm={2}>
+                          <TextField
+                            select
+                            fullWidth
+                            size="small"
+                            label="Duration"
+                            value={session.session_type}
+                            onChange={(e) =>
+                              updateSession(
+                                i,
+                                si,
+                                'session_type',
+                                e.target.value,
+                              )
+                            }
+                          >
+                            <MenuItem value="single">Single</MenuItem>
+                            <MenuItem value="double">Double</MenuItem>
+                            <MenuItem value="triple">Triple</MenuItem>
+                            <MenuItem value="custom">Custom</MenuItem>
+                          </TextField>
+                        </Grid>
+                        <Grid item xs={6} sm={2}>
+                          {session.session_type === 'custom' ? (
+                            <TextField
+                              fullWidth
+                              size="small"
+                              type="time"
+                              label="End"
+                              InputLabelProps={{ shrink: true }}
+                              value={session.end_time}
+                              onChange={(e) =>
+                                updateSession(i, si, 'end_time', e.target.value)
+                              }
+                            />
+                          ) : (
+                            <TextField
+                              fullWidth
+                              size="small"
+                              label="End"
+                              InputLabelProps={{ shrink: true }}
+                              value={sessionEndTime(row, session)}
+                              disabled
+                            />
+                          )}
+                        </Grid>
+                        <Grid item xs={10} sm={3}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            label="Room"
+                            placeholder="e.g., 2D"
+                            value={session.room}
+                            onChange={(e) =>
+                              updateSession(i, si, 'room', e.target.value)
+                            }
+                          />
+                        </Grid>
+                        <Grid item xs={2} sm={1} sx={{ textAlign: 'center' }}>
+                          {row.sessions.length > 1 && (
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => removeSession(i, si)}
+                              title="Remove session"
+                              aria-label="Remove session"
+                            >
+                              <CloseIcon fontSize="small" />
+                            </IconButton>
+                          )}
+                        </Grid>
+                      </Grid>
+                      {session.error && (
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: 'error.main',
+                            display: 'block',
+                            pl: 1,
+                            mt: 0.25,
+                          }}
+                        >
+                          ⚠ {session.error}
+                        </Typography>
+                      )}
+                    </Box>
+                  ))}
+                </Stack>
+
+                <Button
+                  size="small"
+                  onClick={() => addSession(i)}
+                  sx={{ mt: 1 }}
+                >
+                  + Add session
+                </Button>
+              </Paper>
+            ))}
+          </Stack>
+
+          <Button size="small" onClick={addRow} sx={{ mt: 1.5 }}>
+            + Add another class
+          </Button>
+
+          {rowsResult && (
+            <Box sx={{ mt: 1.5 }}>
+              {rowsResult.map((r, i) => (
+                <Typography
+                  key={i}
+                  variant="caption"
+                  sx={{
+                    display: 'block',
+                    color:
+                      r.status === 'ok'
+                        ? 'success.main'
+                        : r.status === 'class_only' || r.status === 'partial'
+                        ? 'warning.main'
+                        : 'error.main',
+                  }}
+                >
+                  {r.status === 'ok'
+                    ? `✓ ${r.label} created with ${r.count} session${
+                        r.count === 1 ? '' : 's'
+                      }`
+                    : r.status === 'partial'
+                    ? `⚠ ${r.label} — ${r.count}/${r.total} sessions placed (${r.msg})`
+                    : r.status === 'class_only'
+                    ? `⚠ ${r.label} — ${r.msg}`
+                    : `✕ ${r.label} — ${r.msg}`}
+                </Typography>
+              ))}
+            </Box>
+          )}
+
+          <Stack
+            direction="row"
+            spacing={1.5}
+            justifyContent="flex-end"
+            sx={{ mt: 2 }}
+          >
+            <Button color="inherit" onClick={onClose}>
+              Done
+            </Button>
+            <Button
+              variant="contained"
+              sx={{ color: '#fff' }}
+              onClick={createAndScheduleRows}
+              disabled={creatingRows || validRowCount === 0}
+            >
+              {creatingRows
+                ? 'Creating...'
+                : `Create & Schedule${
+                    validRowCount ? ` ${validRowCount}` : ''
+                  }`}
+            </Button>
+          </Stack>
+        </Box>
+
+        {showExisting && (
+          <>
+            <Divider sx={{ mb: 2 }} />
+            <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
+              Your Classes
+            </Typography>
+            {classes.length === 0 ? (
+              <Typography
+                variant="body2"
+                sx={{ color: 'text.disabled', fontStyle: 'italic' }}
+              >
+                No classes yet. Create your first class above.
+              </Typography>
+            ) : (
+              <Stack spacing={1}>
+                {classes.map((cls) => (
+                  <Paper
+                    key={cls.id}
+                    variant="outlined"
+                    sx={{
+                      p: 1.5,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Box>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Typography variant="subtitle2">
+                          {cls.class_name}
+                        </Typography>
+                        {classNeedsDetails(cls) && (
+                          <Chip
+                            icon={<WarnIcon style={{ fontSize: 13 }} />}
+                            label="Finish setup"
+                            size="small"
+                            title="Add proficiency and class size"
+                            sx={{
+                              height: 18,
+                              fontSize: 10,
+                              fontWeight: 600,
+                              bgcolor: '#fff3e0',
+                              color: '#b26a00',
+                              '& .MuiChip-icon': { color: '#b26a00', ml: 0.5 },
+                            }}
+                          />
+                        )}
+                      </Stack>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: 'text.secondary' }}
+                      >
+                        {cls.subject} • {cls.grade_level} • {cls.student_count}{' '}
+                        students
+                      </Typography>
+                    </Box>
+                    <Stack direction="row" spacing={0.5}>
+                      {onEditClass && (
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => onEditClass(cls)}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                      {onDeleteClass && (
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => onDeleteClass(cls.id)}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      )}
+                    </Stack>
+                  </Paper>
+                ))}
+              </Stack>
+            )}
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}

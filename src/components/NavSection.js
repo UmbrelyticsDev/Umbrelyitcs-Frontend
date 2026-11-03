@@ -69,13 +69,27 @@ export const ListItemIconStyle = styled(ListItemIcon)({
 NavItem.propTypes = {
   item: PropTypes.object,
   active: PropTypes.func,
+  disabled: PropTypes.bool,
 }
 
-function NavItem({ item, active }) {
+function NavItem({ item, active, disabled }) {
   const theme = useTheme()
   const isActiveRoot = active(item.path)
   const { title, path, icon, info, children, external } = item
   const [open, setOpen] = useState(isActiveRoot)
+
+  // Locked during onboarding (no classes yet): show the item dimmed and inert.
+  if (disabled) {
+    return (
+      <ListItemStyle
+        sx={{ opacity: 0.4, pointerEvents: 'none', cursor: 'default' }}
+      >
+        <ListItemIconStyle>{icon && icon}</ListItemIconStyle>
+        <ListItemText disableTypography primary={title} />
+        {info && info}
+      </ListItemStyle>
+    )
+  }
 
   const handleOpen = () => {
     setOpen((prev) => !prev)
@@ -194,9 +208,16 @@ function NavItem({ item, active }) {
 
 NavSection.propTypes = {
   navConfig: PropTypes.array,
+  locked: PropTypes.bool,
+  lockExempt: PropTypes.array,
 }
 
-export default function NavSection({ navConfig, ...other }) {
+export default function NavSection({
+  navConfig,
+  locked = false,
+  lockExempt = [],
+  ...other
+}) {
   const { pathname } = useLocation()
   const match = (path) =>
     path ? !!matchPath({ path, end: false }, pathname) : false
@@ -209,7 +230,12 @@ export default function NavSection({ navConfig, ...other }) {
           <List key={subheader} disablePadding>
             <ListSubheaderStyle>{subheader}</ListSubheaderStyle>
             {items.map((item) => (
-              <NavItem key={item.title} item={item} active={match} />
+              <NavItem
+                key={item.title}
+                item={item}
+                active={match}
+                disabled={locked && !lockExempt.includes(item.title)}
+              />
             ))}
           </List>
         )

@@ -20,6 +20,7 @@ import editFill from '@iconify/icons-eva/edit-2-fill'
 import emailFill from '@iconify/icons-eva/email-fill'
 import phoneFill from '@iconify/icons-eva/phone-fill'
 import pinFill from '@iconify/icons-eva/pin-fill'
+import personFill from '@iconify/icons-eva/person-fill'
 import bookOpenFill from '@iconify/icons-eva/book-open-fill'
 import homeFill from '@iconify/icons-eva/home-fill'
 import Page from '../../../../components/Page'
@@ -223,10 +224,25 @@ export default function TeacherDetailsView() {
             <Grid item xs={12} md={4}>
               <Card sx={{ textAlign: 'center', py: 4 }}>
                 <Avatar
-                  src={teacher.image || ''}
+                  src={teacher.image || undefined}
                   alt={teacher.name}
-                  sx={{ width: 120, height: 120, mx: 'auto', mb: 2 }}
-                />
+                  sx={{
+                    width: 120,
+                    height: 120,
+                    mx: 'auto',
+                    mb: 2,
+                    bgcolor: 'grey.200',
+                    color: 'grey.500',
+                  }}
+                >
+                  {!teacher.image && (
+                    <Box
+                      component={Icon}
+                      icon={personFill}
+                      sx={{ width: '60%', height: '60%' }}
+                    />
+                  )}
+                </Avatar>
                 <Typography variant="h5">{teacher.name}</Typography>
                 <Typography
                   variant="body2"

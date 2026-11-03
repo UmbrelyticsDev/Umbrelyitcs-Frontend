@@ -8,6 +8,7 @@ import {
   Box,
   Card,
   Button,
+  Chip,
   Stack,
   Dialog,
   DialogTitle,
@@ -25,6 +26,7 @@ import TodaysClasses from 'src/components/TodaysClasses' // adjust path to where
 import RecentLessons from 'src/components/RecentLessons' // adjust path to where you saved it
 import RecentNotes from 'src/components/RecentNotes' // adjust path to where you saved it
 import NewsUpdates from 'src/components/NewsUpdates' // adjust path to where you saved it
+import AddClassesDialog from 'src/components/AddClassesDialog'
 
 const style = {
   p: 4,
@@ -41,6 +43,8 @@ export default function DashboardTeacher() {
   const user = JSON.parse(localStorage.getItem('user'))
   const [teacherData, setTeacherData] = useState([])
   const [classes, setClasses] = useState([])
+  const [classesLoaded, setClassesLoaded] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
   const [selectedClassModal, setSelectedClassModal] = useState(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
@@ -87,6 +91,7 @@ export default function DashboardTeacher() {
 
     if (toolClasses.length > 0) {
       setClasses(toolClasses)
+      setClassesLoaded(true)
       return
     }
 
@@ -102,6 +107,8 @@ export default function DashboardTeacher() {
       }
     } catch (err) {
       console.log('Website classes fetch failed', err)
+    } finally {
+      setClassesLoaded(true)
     }
   }
 
@@ -139,16 +146,13 @@ export default function DashboardTeacher() {
           {/* Dev news / updates */}
           <NewsUpdates />
 
-          {/* Section 1 — today's scheduled classes */}
-          <TodaysClasses />
+          {/* Section 1 — today's scheduled classes. Hidden until the teacher
+              has at least one class, so onboarding users aren't shown an empty
+              "today" strip before they've set anything up. */}
+          {classes.length > 0 && <TodaysClasses />}
 
-          {/* Section 2 — lessons tied to today's classes (else most recent) */}
-          <RecentLessons />
-
-          {/* Section 3 — most recent research notes */}
-          <RecentNotes />
-
-          {/* My Classes — the teacher's full class list */}
+          {/* My Classes — the teacher's full class list (sits directly below
+              Today's Classes) */}
           <Box sx={{ mb: 4 }}>
             <Typography variant="h5" sx={{ mb: 2 }}>
               My Classes
@@ -160,6 +164,14 @@ export default function DashboardTeacher() {
                     sx={{
                       p: 3,
                       cursor: 'pointer',
+                      // Per-class colour accent down the left edge.
+                      borderLeft: '5px solid',
+                      borderLeftColor:
+                        /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(
+                          cls.color || '',
+                        )
+                          ? cls.color
+                          : 'grey.300',
                       '&:hover': { boxShadow: 6 },
                     }}
                     onClick={() => setSelectedClassModal(cls)}
@@ -175,41 +187,69 @@ export default function DashboardTeacher() {
                   </Card>
                 </Grid>
               ))}
-              {classes.length === 0 && (
+              {classesLoaded && classes.length === 0 && (
                 <Grid item xs={12}>
                   {/* Empty state → clickable: opens the Timetable with the
                       Manage Classes modal (independents) so first-time users
-                      can add classes right away. */}
+                      can add classes right away. Guarded by classesLoaded so it
+                      doesn't flash before the class list has been fetched. */}
                   <Card
                     variant="outlined"
-                    onClick={() =>
-                      navigate(
-                        `${PATH_DASHBOARD.general.teacherTimetable}?manageClasses=1`,
-                      )
-                    }
+                    onClick={() => {
+                      // Independents add classes in-place via the popup; school
+                      // teachers still go to the timetable (school-linked flow).
+                      if (user_type === 5) setAddOpen(true)
+                      else
+                        navigate(
+                          `${PATH_DASHBOARD.general.teacherTimetable}?manageClasses=1`,
+                        )
+                    }}
                     sx={{
-                      p: 2,
+                      p: 2.5,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
+                      gap: 2,
                       cursor: 'pointer',
+                      border: '2px solid',
+                      borderColor: 'primary.main',
+                      bgcolor: 'primary.lighter',
                       transition: 'box-shadow 0.15s',
                       '&:hover': { boxShadow: 4 },
                     }}
                   >
-                    <Typography color="text.secondary">
-                      No classes yet. Click here to add your classes and get
-                      started.
-                    </Typography>
+                    <Stack
+                      direction="row"
+                      spacing={1.5}
+                      alignItems="center"
+                      flexWrap="wrap"
+                    >
+                      <Chip
+                        label="START HERE"
+                        color="primary"
+                        size="small"
+                        sx={{ fontWeight: 700, letterSpacing: 0.5 }}
+                      />
+                      <Typography
+                        sx={{ fontWeight: 500, color: 'text.primary' }}
+                      >
+                        Set up your classes to get started.
+                      </Typography>
+                    </Stack>
                     <ArrowForwardIcon
-                      fontSize="small"
-                      sx={{ color: 'text.disabled', flexShrink: 0 }}
+                      sx={{ color: 'primary.main', flexShrink: 0 }}
                     />
                   </Card>
                 </Grid>
               )}
             </Grid>
           </Box>
+
+          {/* Section 2 — lessons tied to today's classes (else most recent) */}
+          <RecentLessons />
+
+          {/* Section 3 — most recent research notes */}
+          <RecentNotes />
 
           <Dialog
             open={!!selectedClassModal}
@@ -258,6 +298,15 @@ export default function DashboardTeacher() {
               </>
             )}
           </Dialog>
+
+          {/* Add Classes — opens in place from the Set-up-classes CTA and
+              closes once a class is added (independents). */}
+          <AddClassesDialog
+            open={addOpen}
+            onClose={() => setAddOpen(false)}
+            onAdded={fetchTeacherClasses}
+            closeOnSuccess
+          />
         </Container>
       )}
     </Page>
