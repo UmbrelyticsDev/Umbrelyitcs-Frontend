@@ -85,7 +85,7 @@ export default function ProfilePictureModal({
           <UploadAvatar
             accept="image/*"
             file={preview}
-            maxSize={3145728}
+            maxSize={10485760}
             onDrop={handleDropAvatar}
             onDelete={() => {
               setPreview(null)

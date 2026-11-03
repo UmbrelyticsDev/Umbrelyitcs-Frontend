@@ -70,6 +70,45 @@ const groupByGrade = (classes) => {
   }
   return Object.entries(groups)
 }
+
+// --- Dirty-tracking signatures ---------------------------------------------
+// Editable state lives in three places (Formik + salaryProfile + teaching
+// Profile). We serialize only the user-editable fields of each section so the
+// current state can be compared against what was loaded from the server, and
+// the Update button stays greyed out until something actually changes.
+const formikSig = (v = {}) =>
+  JSON.stringify({
+    teacherName: v.teacherName || '',
+    avatarUrl: v.avatarUrl || null,
+    email: v.email || '',
+    phone: v.phone || '',
+    password: v.password || '',
+    teaching_philosophy: v.teaching_philosophy || '',
+    subjects: (v.subjects || [])
+      .map((s) => (s && s.id != null ? s.id : s))
+      .sort(),
+    assignedClasses: [...(v.assignedClasses || [])].sort(),
+  })
+
+const salarySig = (s = {}) =>
+  JSON.stringify({
+    classification: s.classification || '',
+    qualification: s.qualification || '',
+    posr: s.posr || '',
+    grossMonthly: s.grossMonthly ?? '',
+    pensionPercentage: s.pensionPercentage ?? '',
+    payJTATax: !!s.payJTATax,
+    employmentDate: s.employmentDate || '',
+  })
+
+const teachingSig = (t = {}) =>
+  JSON.stringify({
+    institution: t.institution || '',
+    country: t.country || '',
+    location: t.location || '',
+    subjects: [...(t.subjects || [])].sort(),
+    gradeLevels: [...(t.gradeLevels || [])].sort(),
+  })
 // ----------------------------------------------------------------------
 
 export default function AddTeacherForm({
@@ -115,6 +154,19 @@ export default function AddTeacherForm({
     payJTATax: false,
     employmentDate: '',
   })
+  // Baseline for dirty-tracking — starts as the default profile and is reset to
+  // whatever loads from the server, so editing any field flags the form dirty.
+  const [salaryBaseline, setSalaryBaseline] = useState(() =>
+    salarySig({
+      classification: '',
+      qualification: 'None',
+      posr: 'NONE',
+      grossMonthly: '',
+      pensionPercentage: '',
+      payJTATax: false,
+      employmentDate: '',
+    }),
+  )
   const onSalaryChange = (field) => (e) => {
     const v = field === 'payJTATax' ? e.target.checked : e.target.value
     setSalaryProfile((prev) => ({ ...prev, [field]: v }))
@@ -136,7 +188,7 @@ export default function AddTeacherForm({
         .then((res) => {
           const p = res.data.result
           if (res.data.status === 1 && p) {
-            setSalaryProfile({
+            const loaded = {
               classification: p.classification || '',
               qualification: p.qualification || 'None',
               posr: p.posr || 'NONE',
@@ -150,7 +202,9 @@ export default function AddTeacherForm({
               employmentDate: p.employment_date
                 ? String(p.employment_date).slice(0, 10)
                 : '',
-            })
+            }
+            setSalaryProfile(loaded)
+            setSalaryBaseline(salarySig(loaded))
           }
         })
         .catch((e) => console.log('salary profile load failed', e))
@@ -222,7 +276,7 @@ export default function AddTeacherForm({
 
   useEffect(() => {
     if (data.id) {
-      formik.setValues({
+      const nextValues = {
         teacherName: data.name || '',
         avatarUrl: data.image || null,
         // Never load the stored (hashed) password into the form. In edit mode
@@ -233,13 +287,17 @@ export default function AddTeacherForm({
         email: data.email || '',
         phone: data.phoneNumber || '',
         subjects: assignedSubject.length ? assignedSubject : [],
+        assignedClasses: [],
         schoolId: data.schoolId || schoolId || null,
         departmentId:
           data.departmentId || departmentId || theDeparmentId || null,
         status: data?.status,
         hodId: data?.id,
         teaching_philosophy: data.teaching_philosophy || '',
-      })
+      }
+      formik.setValues(nextValues)
+      // Re-baseline so loading the record doesn't itself count as a change.
+      setFormikBaseline(formikSig(nextValues))
     }
   }, [data, assignedSubject])
 
@@ -367,6 +425,11 @@ export default function AddTeacherForm({
     getFieldProps,
   } = formik
 
+  // Baseline of the Formik section — the empty default until a record loads,
+  // then reset to the loaded values (see the setValues effect above). In add
+  // mode it stays empty, so typing anything flags the form dirty.
+  const [formikBaseline, setFormikBaseline] = useState(() => formikSig({}))
+
   useEffect(() => {
     const loadClasses = async () => {
       const map = {}
@@ -434,6 +497,15 @@ export default function AddTeacherForm({
     subjects: [],
     gradeLevels: [],
   })
+  const [teachingBaseline, setTeachingBaseline] = useState(() =>
+    teachingSig({
+      institution: '',
+      country: '',
+      location: '',
+      subjects: [],
+      gradeLevels: [],
+    }),
+  )
   const onTeachingChange = (field) => (e) =>
     setTeachingProfile((p) => ({ ...p, [field]: e.target.value }))
 
@@ -446,14 +518,16 @@ export default function AddTeacherForm({
             .map((s) => s.trim())
             .filter(Boolean)
         : []
-    setTeachingProfile({
+    const loaded = {
       institution: data.institution || '',
       country: data.country || '',
       location: data.location || '',
       // Only independents keep free-text subjects; school teachers use ids.
       subjects: user_type === 5 ? toArr(data.subjects) : [],
       gradeLevels: toArr(data.grade_levels),
-    })
+    }
+    setTeachingProfile(loaded)
+    setTeachingBaseline(teachingSig(loaded))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data])
 
@@ -493,6 +567,14 @@ export default function AddTeacherForm({
     }
   }
 
+  // The submit button greys out until something actually changes in any of the
+  // three editable sections (Formik fields, Salary & Employment, Teaching).
+  // Computed here, after all three states and their baselines are declared.
+  const isDirty =
+    formikSig(values) !== formikBaseline ||
+    salarySig(salaryProfile) !== salaryBaseline ||
+    teachingSig(teachingProfile) !== teachingBaseline
+
   return (
     <>
       <FormikProvider value={formik}>
@@ -504,7 +586,7 @@ export default function AddTeacherForm({
                   disabled={tempEditId ? false : deptLimit}
                   accept="image/*"
                   file={values.avatarUrl}
-                  maxSize={3145728}
+                  maxSize={10485760}
                   onDrop={handleDropAvatar}
                   onDelete={() => setFieldValue('avatarUrl', null)}
                   error={Boolean(touched.avatarUrl && errors.avatarUrl)}
@@ -1020,10 +1102,11 @@ export default function AddTeacherForm({
 
               <Stack direction="row" justifyContent="flex-end" sx={{ mt: 3 }}>
                 <LoadingButton
-                  sx={{ color: '#fff' }}
+                  sx={{ ...(isDirty && { color: '#fff' }) }}
                   color="success"
                   type="submit"
                   variant="contained"
+                  disabled={!isDirty || isSubmitting}
                   onClick={() => {
                     if (isTeacherProfile && hodEditId) {
                       axios
