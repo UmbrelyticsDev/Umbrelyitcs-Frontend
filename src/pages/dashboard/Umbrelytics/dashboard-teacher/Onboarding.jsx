@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import {
   Container,
@@ -7,6 +7,7 @@ import {
   Typography,
   Grid,
   TextField,
+  MenuItem,
   Stack,
   Alert,
 } from '@material-ui/core'
@@ -30,11 +31,27 @@ export default function Onboarding() {
     subjects: [],
     gradeLevels: [],
     teachingPhilosophy: '',
+    classification: '',
+    qualification: 'None',
+    posr: 'NONE',
   })
+  const [classifications, setClassifications] = useState([])
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
   const isTeacher = user_type === 4 || user_type === 5
+
+  // Load the classification dropdown (same source as the Update Profile form).
+  useEffect(() => {
+    if (!isTeacher) return
+    axios
+      .get(`${REST_API_END_POINT}salary/classifications`)
+      .then((res) => {
+        if (res.data.status === 1) setClassifications(res.data.result || [])
+      })
+      .catch((e) => console.log('classifications load failed', e))
+  }, [isTeacher])
+
   // Already onboarded (or not a teacher) — nothing to collect here.
   if (!isTeacher || Number(user?.onboarded) !== 0) {
     return <Navigate to="/dashboard/teacher-dashboard" replace />
@@ -51,6 +68,7 @@ export default function Onboarding() {
     if (!form.subjects.length) return setError('Add at least one subject.')
     if (!form.gradeLevels.length)
       return setError('Add at least one grade level.')
+    if (!form.classification) return setError('Select your classification.')
 
     try {
       setSaving(true)
@@ -59,6 +77,23 @@ export default function Onboarding() {
         { ...form, markOnboarded: true },
       )
       if (res.data.status === 1) {
+        // Save employment basics (classification / qualification / POSR) to the
+        // salary profile — same endpoint the Update Profile form uses. Kept
+        // non-blocking so a hiccup here never traps the teacher on this screen;
+        // the rest can be completed later from Update Profile.
+        try {
+          await axios.post(
+            `${REST_API_END_POINT}salary/profile/${user.teacherId}`,
+            {
+              classification: form.classification,
+              qualification: form.qualification,
+              posr: form.posr,
+            },
+          )
+        } catch (e) {
+          console.error('salary profile save failed (non-blocking)', e)
+        }
+
         // Reflect completion locally so the gate lets us through.
         const u = JSON.parse(localStorage.getItem('user') || '{}')
         u.onboarded = 1
@@ -148,6 +183,62 @@ export default function Onboarding() {
                     />
                   )}
                 />
+              </Grid>
+              <Grid item xs={12}>
+                <Typography
+                  variant="subtitle2"
+                  sx={{ color: 'text.secondary', mt: 0.5 }}
+                >
+                  Employment information
+                </Typography>
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Classification"
+                  value={form.classification}
+                  onChange={set('classification')}
+                >
+                  {classifications.map((c) => (
+                    <MenuItem
+                      key={c.classification_name}
+                      value={c.classification_name}
+                    >
+                      {c.classification_name} (Band {c.band})
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Qualification"
+                  value={form.qualification}
+                  onChange={set('qualification')}
+                >
+                  {['None', 'Masters Degree', 'Doctoral Degree'].map((q) => (
+                    <MenuItem key={q} value={q}>
+                      {q}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Post of Special Responsibility"
+                  value={form.posr}
+                  onChange={set('posr')}
+                >
+                  {['NONE', 'POSR I', 'POSR II', 'POSR III'].map((p) => (
+                    <MenuItem key={p} value={p}>
+                      {p}
+                    </MenuItem>
+                  ))}
+                </TextField>
               </Grid>
               <Grid item xs={12}>
                 <TextField

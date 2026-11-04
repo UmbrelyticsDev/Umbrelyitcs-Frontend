@@ -30,9 +30,9 @@ import toolAxios from 'src/_apis_/toolAxios'
 //
 // Props:
 //   open            — dialog visibility
-//   onClose()       — close handler
+//   onClose()       — close handler (also called automatically once a batch is
+//                     added cleanly — the dialog closes whenever entries are made)
 //   onAdded()       — called after a successful create (parent refetches)
-//   closeOnSuccess  — close the dialog once everything was added cleanly
 //   showExisting    — render the "Your Classes" list below the form
 //   classes         — existing classes (for the list)
 //   onEditClass(c)  — open the edit flow for a class (from the list)
@@ -76,7 +76,6 @@ export default function AddClassesDialog({
   open,
   onClose,
   onAdded,
-  closeOnSuccess = false,
   showExisting = false,
   classes = [],
   onEditClass,
@@ -169,7 +168,16 @@ export default function AddClassesDialog({
 
   const validRowCount = classRows.filter(rowValid).length
 
-  // Create each class and place all of its valid sessions, in one action.
+  // Do two time intervals overlap? (half-open: touching end-to-start is fine)
+  const overlaps = (aS, aE, bS, bE) => aS < bE && bS < aE
+
+  // Create each class and place all of its valid sessions — all or nothing.
+  // Before creating anything we check every session for a time clash, both
+  // against the teacher's existing timetable and against the other sessions in
+  // this batch. If ANY session clashes, nothing is created or scheduled; the
+  // offending sessions are flagged and the dialog stays open. Only when the
+  // whole batch is clear do we create the classes and schedule the sessions,
+  // then close the dialog.
   const createAndScheduleRows = async () => {
     const valid = classRows.filter(rowValid)
     if (valid.length === 0) {
@@ -181,135 +189,160 @@ export default function AddClassesDialog({
     }
 
     setCreatingRows(true)
-    const results = []
-    // The rows the form should keep afterward: incomplete rows the user is
-    // still filling in, rows whose class couldn't be created (full retry), and
-    // rows where only some sessions clashed (retry just those). Fully-scheduled
-    // rows are dropped.
-    const nextRows = []
 
-    for (const row of classRows) {
-      // Leave rows the user hasn't finished filling in untouched.
-      if (!rowValid(row)) {
-        nextRows.push(row)
-        continue
+    // 1) Flatten every valid session we're about to add, with its time window
+    //    and a reference back to its row/session position in the form.
+    const newSessions = []
+    classRows.forEach((row, i) => {
+      if (!rowValid(row)) return
+      row.sessions.forEach((s, si) => {
+        if (!sessionValid(row, s)) return
+        newSessions.push({
+          i,
+          si,
+          label: row.class_name.trim(),
+          day: s.day_of_week,
+          startMin: toMinutes(s.start_time),
+          endMin: toMinutes(sessionEndTime(row, s)),
+        })
+      })
+    })
+
+    // 2) Load the current timetable so we can detect clashes BEFORE creating
+    //    anything. If we can't read it, abort rather than risk a partial add.
+    let existing = []
+    try {
+      const ttRes = await toolAxios.get('/api/timetables')
+      existing = (ttRes.data?.data || []).map((e) => ({
+        day: e.day_of_week,
+        startMin: toMinutes(e.start_time),
+        endMin: toMinutes(e.end_time),
+        name: e.class_name,
+      }))
+    } catch (e) {
+      setCreatingRows(false)
+      enqueueSnackbar(
+        'Could not check the timetable for clashes. Please try again.',
+        { variant: 'error' },
+      )
+      return
+    }
+
+    // 3) Flag every session that clashes — with an existing entry, or with
+    //    another session in this same batch.
+    const clashErrors = {} // `${i}:${si}` -> message
+    newSessions.forEach((ns) => {
+      const hitExisting = existing.find(
+        (ex) =>
+          ex.day === ns.day &&
+          overlaps(ns.startMin, ns.endMin, ex.startMin, ex.endMin),
+      )
+      if (hitExisting) {
+        clashErrors[`${ns.i}:${ns.si}`] = `clashes with ${
+          hitExisting.name || 'an existing class'
+        } already on ${ns.day} ${fmtTime(hitExisting.startMin)}–${fmtTime(
+          hitExisting.endMin,
+        )}`
+        return
       }
+      const hitBatch = newSessions.find(
+        (other) =>
+          other !== ns &&
+          other.day === ns.day &&
+          overlaps(ns.startMin, ns.endMin, other.startMin, other.endMin),
+      )
+      if (hitBatch) {
+        clashErrors[`${ns.i}:${ns.si}`] = `overlaps ${
+          hitBatch.label || 'another class'
+        } you're adding on ${ns.day} ${fmtTime(hitBatch.startMin)}–${fmtTime(
+          hitBatch.endMin,
+        )}`
+      }
+    })
 
+    // 4) Any clash → block the ENTIRE batch. Nothing is created; the form stays
+    //    open with the offending sessions flagged so they can be fixed.
+    if (Object.keys(clashErrors).length > 0) {
+      setClassRows((rows) =>
+        rows.map((r, i) => ({
+          ...r,
+          sessions: r.sessions.map((s, si) => ({
+            ...s,
+            error: clashErrors[`${i}:${si}`] || undefined,
+          })),
+        })),
+      )
+      setRowsResult([
+        {
+          status: 'blocked',
+          msg: `Nothing was added — ${
+            Object.keys(clashErrors).length
+          } session(s) clash. Resolve the highlighted conflict(s) and try again.`,
+        },
+      ])
+      setCreatingRows(false)
+      enqueueSnackbar(
+        'Clash detected — nothing was added. Fix the conflicts and try again.',
+        { variant: 'error' },
+      )
+      return
+    }
+
+    // 5) All clear → create each class and schedule all of its sessions.
+    const results = []
+    let hadError = false
+    for (const row of classRows) {
+      if (!rowValid(row)) continue
       const label = row.class_name.trim()
       try {
-        // Reuse the class if it was already created on a previous attempt, so a
-        // retry after a clash never creates a duplicate class.
-        let classId = row.created_id
-        if (!classId) {
-          const len = parseInt(row.standard_session_length, 10) || 60
-          const firstType =
-            row.sessions.find((s) => sessionValid(row, s))?.session_type ||
-            'double'
-          const createRes = await toolAxios.post('/api/timetables/classes', {
-            class_name: row.class_name.trim(),
-            subject: row.subject.trim(),
-            grade_level: row.grade_level.trim(),
-            student_count: parseInt(row.student_count, 10) || 25,
-            proficiency: row.proficiency || 'Mixed proficiency',
-            standard_session_length: len,
-            session_type: firstType === 'custom' ? 'double' : firstType,
-            academic_year: new Date().getFullYear(),
-            term: 'Term 1',
-            class_time: '9:00 AM',
-          })
-          classId = createRes.data?.data?.id
-        }
+        const len = parseInt(row.standard_session_length, 10) || 60
+        const firstType =
+          row.sessions.find((s) => sessionValid(row, s))?.session_type ||
+          'double'
+        const createRes = await toolAxios.post('/api/timetables/classes', {
+          class_name: row.class_name.trim(),
+          subject: row.subject.trim(),
+          grade_level: row.grade_level.trim(),
+          student_count: parseInt(row.student_count, 10) || 25,
+          proficiency: row.proficiency || 'Mixed proficiency',
+          standard_session_length: len,
+          session_type: firstType === 'custom' ? 'double' : firstType,
+          academic_year: new Date().getFullYear(),
+          term: 'Term 1',
+          class_time: '9:00 AM',
+        })
+        const classId = createRes.data?.data?.id
+        if (!classId) throw new Error('class could not be created')
 
-        if (!classId) {
-          results.push({
-            label,
-            status: 'class_only',
-            msg: "created, but its sessions couldn't be added",
-          })
-          nextRows.push({ ...row }) // allow a full retry
-          continue
-        }
-
-        // Schedule each valid session; keep the ones that fail (e.g. a time
-        // clash) so the teacher can fix just those and resubmit. Successful
-        // sessions are dropped so they're never double-posted.
-        const totalValid = row.sessions.filter((s) =>
-          sessionValid(row, s),
-        ).length
-        const keptSessions = []
         let scheduled = 0
-        let failed = 0
-        let lastErr = ''
-
         for (const s of row.sessions) {
-          if (!sessionValid(row, s)) {
-            keptSessions.push({ ...s, error: undefined })
-            continue
-          }
-          try {
-            await toolAxios.post('/api/timetables', {
-              class_id: classId,
-              day_of_week: s.day_of_week,
-              start_time: s.start_time,
-              end_time: sessionEndTime(row, s),
-              notes: '',
-              session_type: s.session_type,
-              room: s.room || '',
-            })
-            scheduled++ // success → drop this session from the form
-          } catch (schedErr) {
-            failed++
-            const msg =
-              schedErr.response?.data?.error ||
-              'could not be placed (time clash?)'
-            lastErr = msg
-            keptSessions.push({ ...s, error: msg })
-          }
-        }
-
-        if (failed === 0) {
-          // Everything landed → this row is done and drops out of the form.
-          results.push({ label, status: 'ok', count: scheduled })
-        } else {
-          results.push({
-            label,
-            status: scheduled > 0 ? 'partial' : 'class_only',
-            count: scheduled,
-            total: totalValid,
-            msg: lastErr,
+          if (!sessionValid(row, s)) continue
+          await toolAxios.post('/api/timetables', {
+            class_id: classId,
+            day_of_week: s.day_of_week,
+            start_time: s.start_time,
+            end_time: sessionEndTime(row, s),
+            notes: '',
+            session_type: s.session_type,
+            room: s.room || '',
           })
-          // Keep the class (already created) and only the unresolved sessions.
-          nextRows.push({
-            ...row,
-            created_id: classId,
-            sessions: keptSessions.length
-              ? keptSessions
-              : [{ ...EMPTY_SESSION }],
-          })
+          scheduled++
         }
+        results.push({ label, status: 'ok', count: scheduled })
       } catch (err) {
+        hadError = true
         results.push({
           label,
           status: 'failed',
           msg: err.response?.data?.error || 'could not be created',
         })
-        nextRows.push({ ...row }) // class creation failed → keep for a full retry
       }
     }
 
     setCreatingRows(false)
     setRowsResult(results)
 
-    // Reset to a single fresh row only when nothing is left to fix.
-    setClassRows(
-      nextRows.length
-        ? nextRows
-        : [{ ...EMPTY_CLASS_ROW, sessions: [{ ...EMPTY_SESSION }] }],
-    )
-
-    const okCount = results.filter(
-      (r) => r.status === 'ok' || r.status === 'partial',
-    ).length
+    const okCount = results.filter((r) => r.status === 'ok').length
     if (okCount > 0) {
       enqueueSnackbar(`Added ${okCount} class(es) to your timetable!`, {
         variant: 'success',
@@ -321,13 +354,11 @@ export default function AddClassesDialog({
     // Let the sidebar re-check its onboarding lock without a page reload.
     window.dispatchEvent(new Event('umbrelytics:classes-changed'))
 
-    // Close automatically only when everything landed cleanly and nothing is
-    // left to retry.
-    const allOk =
-      nextRows.length === 0 &&
-      results.length > 0 &&
-      results.every((r) => r.status === 'ok')
-    if (closeOnSuccess && allOk && onClose) onClose()
+    // Entries were made → close the dialog (and reset for next time).
+    if (!hadError && okCount > 0) {
+      setClassRows([{ ...EMPTY_CLASS_ROW, sessions: [{ ...EMPTY_SESSION }] }])
+      if (onClose) onClose()
+    }
   }
 
   return (
@@ -651,6 +682,8 @@ export default function AddClassesDialog({
                     ? `✓ ${r.label} created with ${r.count} session${
                         r.count === 1 ? '' : 's'
                       }`
+                    : r.status === 'blocked'
+                    ? `⚠ ${r.msg}`
                     : r.status === 'partial'
                     ? `⚠ ${r.label} — ${r.count}/${r.total} sessions placed (${r.msg})`
                     : r.status === 'class_only'

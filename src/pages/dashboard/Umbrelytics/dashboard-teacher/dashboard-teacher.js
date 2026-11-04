@@ -305,7 +305,6 @@ export default function DashboardTeacher() {
             open={addOpen}
             onClose={() => setAddOpen(false)}
             onAdded={fetchTeacherClasses}
-            closeOnSuccess
           />
         </Container>
       )}

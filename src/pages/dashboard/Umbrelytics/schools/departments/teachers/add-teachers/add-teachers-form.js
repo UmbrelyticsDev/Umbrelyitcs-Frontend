@@ -51,6 +51,7 @@ import { Link as RouterLink } from 'react-router-dom'
 import toolAxios from 'src/_apis_/toolAxios'
 import lockFill from '@iconify/icons-eva/lock-fill'
 import ChangePasswordModal from 'src/components/ChangePasswordModal'
+import PhoneField from 'src/components/PhoneField'
 
 // utils
 
@@ -285,7 +286,9 @@ export default function AddTeacherForm({
         // dedicated Change Password flow instead.
         password: '',
         email: data.email || '',
-        phone: data.phoneNumber || '',
+        // Digits only (incl. country code, no '+') for the PhoneField; the '+'
+        // is re-added on submit.
+        phone: String(data.phoneNumber || '').replace(/\D/g, ''),
         subjects: assignedSubject.length ? assignedSubject : [],
         assignedClasses: [],
         schoolId: data.schoolId || schoolId || null,
@@ -331,10 +334,7 @@ export default function AddTeacherForm({
       : Yup.string(),
     phone: Yup.string()
       .required('Phone Number is required')
-      .matches(
-        /^\d{10}$/,
-        'Phone Number must be exactly 10 digits long and contain only numbers',
-      ),
+      .min(8, 'Enter a valid phone number'),
     // Teachers don't assign their own subjects, so it's only required when an
     // admin/HOD is creating or editing a teacher (user types 1-3).
     subjects:
@@ -371,11 +371,16 @@ export default function AddTeacherForm({
         // enqueueSnackbar(user_type !==4 ? 'Teacher Added Successfully' : 'Profile Updated Succesfully', { variant: 'success' });
         // user_type !== 4 ? setTeacher(false) : navigate(PATH_DASHBOARD.general.teacherDetails)
         // console.log('Form Values : ',values);
+        // Re-add the '+' so the number is stored in full international form.
+        const payloadValues = {
+          ...values,
+          phone: values.phone ? `+${values.phone}` : '',
+        }
         const response = await axios.post(
           `${REST_API_END_POINT}${
             hodEditId ? 'update-teacher/' + hodEditId : 'add-teacher'
           }`,
-          { values },
+          { values: payloadValues },
         )
         if (response.data.status === 2) {
           enqueueSnackbar(`Account Already Exist with ${values.email}`, {
@@ -641,29 +646,10 @@ export default function AddTeacherForm({
                       helperText={touched.password && errors.password}
                     />
                   )}
-                  <TextField
-                    fullWidth
+                  <PhoneField
                     label="Teacher Phone Number"
-                    {...getFieldProps('phone')}
-                    InputProps={{
-                      type: 'tel',
-                      inputProps: {
-                        maxLength: 10,
-                      },
-                    }}
-                    onInput={(e) => {
-                      e.target.value = e.target.value.replace(/\D/g, '')
-
-                      // Restrict length to 10
-                      if (e.target.value.length > 10) {
-                        e.target.value = e.target.value.slice(0, 10)
-                      }
-
-                      // Prevent exactly ten 0s
-                      if (e.target.value === '0000000000') {
-                        e.target.value = '' // Clear the input if it is all zeros
-                      }
-                    }}
+                    value={values.phone}
+                    onChange={(v) => setFieldValue('phone', v)}
                     error={Boolean(touched.phone && errors.phone)}
                     helperText={touched.phone && errors.phone}
                   />
@@ -833,7 +819,7 @@ export default function AddTeacherForm({
                 <Card variant="outlined" sx={{ mt: 3 }}>
                   <CardContent>
                     <Typography variant="subtitle1" sx={{ mb: 0.5 }}>
-                      Salary & Employment
+                      Employment Information
                     </Typography>
                     <Typography
                       variant="caption"

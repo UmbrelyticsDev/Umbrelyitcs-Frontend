@@ -19,6 +19,7 @@ import eyeFill from '@iconify/icons-eva/eye-fill'
 import eyeOffFill from '@iconify/icons-eva/eye-off-fill'
 import axios from 'axios'
 import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
+import { passwordRules, PASSWORD_HELP } from 'src/utils/passwordPolicy'
 
 // Self-service "change my password" dialog for the signed-in teacher /
 // independent educator. Collects current + new + confirm, then calls the
@@ -34,9 +35,8 @@ export default function ChangePasswordModal({ open, onClose }) {
 
   const Schema = Yup.object().shape({
     currentPassword: Yup.string().required('Current password is required'),
-    newPassword: Yup.string()
+    newPassword: passwordRules(Yup.string())
       .required('New password is required')
-      .min(8, 'Must be at least 8 characters')
       .notOneOf(
         [Yup.ref('currentPassword')],
         'New password must be different from the current one',
@@ -80,7 +80,7 @@ export default function ChangePasswordModal({ open, onClose }) {
             variant: 'error',
           })
         } else if (status === 3) {
-          enqueueSnackbar('New password must be at least 8 characters', {
+          enqueueSnackbar(PASSWORD_HELP, {
             variant: 'error',
           })
         } else if (status === 4) {

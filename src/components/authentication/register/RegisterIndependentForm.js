@@ -32,6 +32,8 @@ import useIsMountedRef from '../../../hooks/useIsMountedRef'
 // components
 import { MIconButton } from '../../@material-extend'
 import TurnstileWidget from './TurnstileWidget'
+import { passwordRules } from 'src/utils/passwordPolicy'
+import PhoneField from 'src/components/PhoneField'
 
 // Teaching-profile details are no longer collected at registration — new
 // teachers enter them in the first-login onboarding gate. Registration is now
@@ -69,13 +71,13 @@ export default function RegisterIndependentForm({ onRegistered }) {
     email: Yup.string()
       .email('Enter a valid email address')
       .required('Email is required'),
-    password: Yup.string()
-      .min(8, 'At least 8 characters')
-      .required('Password is required'),
+    password: passwordRules(Yup.string()).required('Password is required'),
     confirmPassword: Yup.string()
       .oneOf([Yup.ref('password')], 'Passwords must match')
       .required('Please confirm your password'),
-    phone: Yup.string().required('Phone number is required'),
+    phone: Yup.string()
+      .min(8, 'Enter a valid phone number')
+      .required('Phone number is required'),
     acceptedTerms: Yup.bool().oneOf(
       [true],
       'You must accept the Terms and Privacy Policy',
@@ -104,7 +106,7 @@ export default function RegisterIndependentForm({ onRegistered }) {
           fullName: `${values.firstName} ${values.lastName}`.trim(),
           email: values.email,
           password: values.password,
-          phone: values.phone,
+          phone: values.phone ? `+${values.phone}` : '',
           acceptedTerms: values.acceptedTerms,
           turnstileToken,
         })
@@ -138,6 +140,7 @@ export default function RegisterIndependentForm({ onRegistered }) {
     isSubmitting,
     handleSubmit,
     getFieldProps,
+    setFieldValue,
     validateForm,
     setTouched,
     handleChange,
@@ -235,10 +238,10 @@ export default function RegisterIndependentForm({ onRegistered }) {
                 helperText={touched.confirmPassword && errors.confirmPassword}
               />
             </Stack>
-            <TextField
-              fullWidth
+            <PhoneField
               label="Phone number"
-              {...getFieldProps('phone')}
+              value={values.phone}
+              onChange={(v) => setFieldValue('phone', v)}
               error={Boolean(touched.phone && errors.phone)}
               helperText={touched.phone && errors.phone}
             />

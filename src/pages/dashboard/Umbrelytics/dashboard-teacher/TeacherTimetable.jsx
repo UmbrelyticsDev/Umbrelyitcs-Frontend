@@ -18,6 +18,7 @@ import {
   CircularProgress,
   Stack,
   Paper,
+  Divider,
 } from '@material-ui/core'
 import {
   Add as AddIcon,
@@ -136,6 +137,9 @@ export default function TeacherTimetable() {
   // Class dialog
   const [editingClass, setEditingClass] = useState(null)
   const [classForm, setClassForm] = useState(EMPTY_CLASS)
+  // Editable copies of this class's scheduled sessions (shown in the Edit Class
+  // modal). Length/type live here per session, not on the class.
+  const [sessionEdits, setSessionEdits] = useState([])
   const [addOpen, setAddOpen] = useState(false)
 
   // Timetable import dialog
@@ -409,7 +413,41 @@ export default function TeacherTimetable() {
   const closeClassDialog = () => {
     setEditingClass(null)
     setClassForm(EMPTY_CLASS)
+    setSessionEdits([])
   }
+
+  // Build editable session rows for a class from the loaded timetable. Each
+  // row's "length" is the per-unit base derived from the stored start→end, so a
+  // single/double/triple keeps meaning without a class-level session length.
+  const sessionsForClass = (classId) =>
+    timetable
+      .filter((e) => String(e.class_id) === String(classId))
+      .sort(
+        (a, b) =>
+          DAYS.indexOf(a.day_of_week) - DAYS.indexOf(b.day_of_week) ||
+          String(a.start_time).localeCompare(String(b.start_time)),
+      )
+      .map((e) => {
+        const type = e.session_type || 'single'
+        const dur = toMinutes(e.end_time) - toMinutes(e.start_time)
+        const base =
+          type === 'custom' ? '' : Math.round(dur / multiplierFor(type)) || ''
+        return {
+          id: e.id,
+          day_of_week: e.day_of_week,
+          start_time: trimTime(e.start_time),
+          end_time: trimTime(e.end_time),
+          session_type: type,
+          length: base,
+          room: e.room || '',
+          notes: e.notes || '',
+        }
+      })
+
+  const updateSessionEdit = (idx, field, value) =>
+    setSessionEdits((arr) =>
+      arr.map((s, i) => (i === idx ? { ...s, [field]: value } : s)),
+    )
 
   // Open the shared Add Classes dialog (multi-row create + schedule).
   const openAddClasses = () => {
@@ -427,12 +465,15 @@ export default function TeacherTimetable() {
       room: cls.room || '',
       proficiency: cls.proficiency || 'Mixed proficiency',
       color: cls.color || '',
+      // Carried through (not shown in the form) so saving never blanks the DB
+      // columns; length/type are now edited per session below.
       standard_session_length: cls.standard_session_length || 60,
       session_type: cls.session_type || 'double',
       academic_year: cls.academic_year || new Date().getFullYear(),
       term: cls.term || 'Term 1',
       class_time: cls.class_time || '9:00 AM',
     })
+    setSessionEdits(sessionsForClass(cls.id))
   }
 
   // Save an edit to an existing class (create now happens via the multi-row
@@ -443,9 +484,31 @@ export default function TeacherTimetable() {
         `/api/timetables/classes/${editingClass.id}`,
         classForm,
       )
+
+      // Save each session's day/time/length/type. End time is recomputed from
+      // start + (type multiplier × length); custom keeps its explicit end.
+      for (const s of sessionEdits) {
+        let end_time = s.end_time
+        if (s.session_type !== 'custom') {
+          const len = parseInt(s.length, 10) || getBaseLen(editingClass.id)
+          end_time = fmtTime(
+            toMinutes(s.start_time) + multiplierFor(s.session_type) * len,
+          )
+        }
+        await toolAxios.put(`/api/timetables/${s.id}`, {
+          day_of_week: s.day_of_week,
+          start_time: s.start_time,
+          end_time,
+          notes: s.notes,
+          session_type: s.session_type,
+          room: s.room,
+        })
+      }
+
       enqueueSnackbar('Class updated', { variant: 'success' })
       setEditingClass(null)
       setClassForm(EMPTY_CLASS)
+      setSessionEdits([])
       fetchData()
     } catch (err) {
       enqueueSnackbar(err.response?.data?.error || 'Failed to save class', {
@@ -655,6 +718,15 @@ export default function TeacherTimetable() {
   const proficiencyIsDefault =
     editNeedsReview &&
     (!classForm.proficiency || classForm.proficiency === 'Mixed proficiency')
+
+  // Every edited session needs a start time, and a custom one needs an end
+  // after its start — otherwise the Update button is disabled.
+  const sessionsValid = sessionEdits.every(
+    (s) =>
+      s.start_time &&
+      (s.session_type !== 'custom' ||
+        (s.end_time && toMinutes(s.end_time) > toMinutes(s.start_time))),
+  )
 
   return (
     <Page title="Timetable | Umbrelytics">
@@ -1386,37 +1458,6 @@ export default function TeacherTimetable() {
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
-                  type="number"
-                  label="Session Length (minutes)"
-                  value={classForm.standard_session_length}
-                  onChange={(e) =>
-                    setClassForm({
-                      ...classForm,
-                      standard_session_length:
-                        parseInt(e.target.value, 10) || 60,
-                    })
-                  }
-                  inputProps={{ min: 10, max: 120 }}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  select
-                  fullWidth
-                  label="Session Type"
-                  value={classForm.session_type}
-                  onChange={(e) =>
-                    setClassForm({ ...classForm, session_type: e.target.value })
-                  }
-                >
-                  <MenuItem value="single">Single</MenuItem>
-                  <MenuItem value="double">Double</MenuItem>
-                  <MenuItem value="triple">Triple</MenuItem>
-                </TextField>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
                   label="Proficiency"
                   value={classForm.proficiency}
                   onChange={(e) =>
@@ -1480,15 +1521,155 @@ export default function TeacherTimetable() {
                   Shown on the timetable blocks for this class.
                 </Typography>
               </Grid>
+              {/* Sessions — day/time/length/type are edited per session here,
+                  not on the class. */}
+              <Grid item xs={12}>
+                <Divider sx={{ mb: 2 }} />
+                <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
+                  Sessions
+                </Typography>
+                {sessionEdits.length === 0 ? (
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    This class isn&apos;t scheduled yet. Use “Add to Schedule”
+                    to place it on your timetable.
+                  </Typography>
+                ) : (
+                  <Stack spacing={1.5}>
+                    {sessionEdits.map((s, idx) => (
+                      <Paper key={s.id} variant="outlined" sx={{ p: 1.5 }}>
+                        <Grid container spacing={1} alignItems="center">
+                          <Grid item xs={6} sm={2}>
+                            <TextField
+                              select
+                              fullWidth
+                              size="small"
+                              label="Day"
+                              value={s.day_of_week}
+                              onChange={(e) =>
+                                updateSessionEdit(
+                                  idx,
+                                  'day_of_week',
+                                  e.target.value,
+                                )
+                              }
+                            >
+                              {DAYS.map((d) => (
+                                <MenuItem key={d} value={d}>
+                                  {d}
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                          </Grid>
+                          <Grid item xs={6} sm={2}>
+                            <TextField
+                              fullWidth
+                              size="small"
+                              type="time"
+                              label="Start"
+                              InputLabelProps={{ shrink: true }}
+                              value={s.start_time}
+                              onChange={(e) =>
+                                updateSessionEdit(
+                                  idx,
+                                  'start_time',
+                                  e.target.value,
+                                )
+                              }
+                            />
+                          </Grid>
+                          <Grid item xs={6} sm={2}>
+                            <TextField
+                              select
+                              fullWidth
+                              size="small"
+                              label="Type"
+                              value={s.session_type}
+                              onChange={(e) =>
+                                updateSessionEdit(
+                                  idx,
+                                  'session_type',
+                                  e.target.value,
+                                )
+                              }
+                            >
+                              <MenuItem value="single">Single</MenuItem>
+                              <MenuItem value="double">Double</MenuItem>
+                              <MenuItem value="triple">Triple</MenuItem>
+                              <MenuItem value="custom">Custom</MenuItem>
+                            </TextField>
+                          </Grid>
+                          <Grid item xs={6} sm={2}>
+                            {s.session_type === 'custom' ? (
+                              <TextField
+                                fullWidth
+                                size="small"
+                                type="time"
+                                label="End"
+                                InputLabelProps={{ shrink: true }}
+                                value={s.end_time}
+                                onChange={(e) =>
+                                  updateSessionEdit(
+                                    idx,
+                                    'end_time',
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            ) : (
+                              <TextField
+                                fullWidth
+                                size="small"
+                                type="number"
+                                label="Length (min)"
+                                value={s.length}
+                                onChange={(e) =>
+                                  updateSessionEdit(
+                                    idx,
+                                    'length',
+                                    e.target.value,
+                                  )
+                                }
+                                inputProps={{ min: 10, max: 120 }}
+                              />
+                            )}
+                          </Grid>
+                          <Grid item xs={8} sm={3}>
+                            <TextField
+                              fullWidth
+                              size="small"
+                              label="Room"
+                              value={s.room}
+                              onChange={(e) =>
+                                updateSessionEdit(idx, 'room', e.target.value)
+                              }
+                            />
+                          </Grid>
+                          <Grid item xs={4} sm={1}>
+                            <Typography
+                              variant="caption"
+                              sx={{ color: 'text.secondary' }}
+                            >
+                              {s.session_type !== 'custom' &&
+                              s.start_time &&
+                              s.length
+                                ? `→ ${fmtTime(
+                                    toMinutes(s.start_time) +
+                                      multiplierFor(s.session_type) *
+                                        (parseInt(s.length, 10) || 0),
+                                  )}`
+                                : ''}
+                            </Typography>
+                          </Grid>
+                        </Grid>
+                      </Paper>
+                    ))}
+                  </Stack>
+                )}
+              </Grid>
+
               <Grid item xs={12}>
                 <Stack direction="row" spacing={1.5} justifyContent="flex-end">
-                  <Button
-                    color="inherit"
-                    onClick={() => {
-                      setEditingClass(null)
-                      setClassForm(EMPTY_CLASS)
-                    }}
-                  >
+                  <Button color="inherit" onClick={closeClassDialog}>
                     Cancel Edit
                   </Button>
                   <Button
@@ -1498,7 +1679,8 @@ export default function TeacherTimetable() {
                     disabled={
                       !classForm.class_name ||
                       !classForm.subject ||
-                      !classForm.grade_level
+                      !classForm.grade_level ||
+                      !sessionsValid
                     }
                   >
                     Update Class

@@ -357,7 +357,9 @@ export default function TeacherDetailsView() {
                     justifyContent="space-between"
                     sx={{ mb: 2 }}
                   >
-                    <Typography variant="h6">Salary & Employment</Typography>
+                    <Typography variant="h6">
+                      Employment Band Information
+                    </Typography>
                     <Button
                       variant="outlined"
                       disabled={!hasSalaryData || summaryLoading}
