@@ -26,7 +26,6 @@ export default function PhoneField({
         enableSearch
         disabled={disabled}
         specialLabel={label}
-        countryCodeEditable={false}
         // Jamaica isn't given a NANP mask by default, so format it like the
         // other +1 countries: area code then 3-then-4 → (876) 678-5432.
         masks={{ jm: '... ....' }}

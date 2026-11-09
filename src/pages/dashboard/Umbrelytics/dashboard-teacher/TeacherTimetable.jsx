@@ -26,7 +26,6 @@ import {
   School as SchoolIcon,
   CalendarToday as CalendarIcon,
   FileCopyOutlined as FileCopyIcon,
-  ReportProblemOutlined as WarnIcon,
 } from '@material-ui/icons'
 import { useSnackbar } from 'notistack'
 import Page from '../../../../components/Page'
@@ -111,11 +110,6 @@ const fmtTime = (mins) =>
   ).padStart(2, '0')}`
 const fmtHour = (h) => `${String(h).padStart(2, '0')}:00`
 const multiplierFor = (t) => (t === 'double' ? 2 : t === 'triple' ? 3 : 1)
-
-// A class created via quick-add starts unconfirmed (details_confirmed = 0);
-// the "Finish setup" marker clears once the teacher saves it in the Edit form,
-// which sets details_confirmed = 1 — regardless of the field values.
-const classNeedsDetails = (c) => c && !Number(c.details_confirmed)
 
 export default function TeacherTimetable() {
   const { enqueueSnackbar } = useSnackbar()
@@ -463,7 +457,10 @@ export default function TeacherTimetable() {
       grade_level: cls.grade_level || '',
       student_count: cls.student_count || 25,
       room: cls.room || '',
-      proficiency: cls.proficiency || 'Mixed proficiency',
+      proficiency:
+        cls.proficiency && cls.proficiency !== 'Mixed proficiency'
+          ? cls.proficiency
+          : '',
       color: cls.color || '',
       // Carried through (not shown in the form) so saving never blanks the DB
       // columns; length/type are now edited per session below.
@@ -709,15 +706,6 @@ export default function TeacherTimetable() {
     (entryForm.start_time &&
       entryForm.end_time &&
       toMinutes(entryForm.end_time) > toMinutes(entryForm.start_time))
-
-  // In the Edit Class form, grey out + flag the three fields that quick-add
-  // leaves on defaults, until the teacher reviews them (class still unconfirmed).
-  const editNeedsReview = classNeedsDetails(editingClass)
-  const studentsIsDefault =
-    editNeedsReview && Number(classForm.student_count) === 25
-  const proficiencyIsDefault =
-    editNeedsReview &&
-    (!classForm.proficiency || classForm.proficiency === 'Mixed proficiency')
 
   // Every edited session needs a start time, and a custom one needs an end
   // after its start — otherwise the Update button is disabled.
@@ -1008,9 +996,7 @@ export default function TeacherTimetable() {
                               userSelect: 'none',
                               cursor: canEdit ? 'grab' : 'default',
                               opacity: beingDragged ? 0.4 : 1,
-                              ...(classNeedsDetails(entry)
-                                ? { borderLeft: '4px solid #f59e0b' }
-                                : blockColor
+                              ...(blockColor
                                 ? { borderLeft: `4px solid ${blockColor}` }
                                 : {}),
                             }}
@@ -1035,31 +1021,6 @@ export default function TeacherTimetable() {
                                 <FileCopyIcon style={{ fontSize: 16 }} />
                               </IconButton>
                             )}
-                            {canEdit && classNeedsDetails(entry) && (
-                              <IconButton
-                                size="small"
-                                title="Finish setup: add proficiency and class size"
-                                aria-label="Finish setup"
-                                onPointerDown={(e) => e.stopPropagation()}
-                                onClick={() => {
-                                  const full = classes.find(
-                                    (c) =>
-                                      String(c.id) === String(entry.class_id),
-                                  )
-                                  if (full) openEditClass(full)
-                                }}
-                                sx={{
-                                  position: 'absolute',
-                                  top: 2,
-                                  right: 22,
-                                  zIndex: 2,
-                                  color: '#f59e0b',
-                                  p: 0.25,
-                                }}
-                              >
-                                <WarnIcon style={{ fontSize: 16 }} />
-                              </IconButton>
-                            )}
                             <Typography
                               variant="caption"
                               sx={{
@@ -1068,7 +1029,7 @@ export default function TeacherTimetable() {
                                 whiteSpace: 'nowrap',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
-                                pr: classNeedsDetails(entry) ? 5 : 2.5,
+                                pr: 2.5,
                               }}
                             >
                               {entry.class_name}
@@ -1435,6 +1396,7 @@ export default function TeacherTimetable() {
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
+                  required
                   type="number"
                   label="Student Count"
                   value={classForm.student_count}
@@ -1444,36 +1406,18 @@ export default function TeacherTimetable() {
                       student_count: parseInt(e.target.value, 10) || 0,
                     })
                   }
-                  inputProps={{
-                    style: studentsIsDefault ? { color: '#9e9e9e' } : undefined,
-                  }}
-                  helperText={
-                    studentsIsDefault
-                      ? '⚠ Default (25) — update if needed'
-                      : undefined
-                  }
-                  FormHelperTextProps={{ sx: { color: '#b26a00', ml: 0 } }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
+                  required
                   label="Proficiency"
+                  placeholder="e.g. mixed levels, mostly beginners, advanced"
                   value={classForm.proficiency}
                   onChange={(e) =>
                     setClassForm({ ...classForm, proficiency: e.target.value })
                   }
-                  inputProps={{
-                    style: proficiencyIsDefault
-                      ? { color: '#9e9e9e' }
-                      : undefined,
-                  }}
-                  helperText={
-                    proficiencyIsDefault
-                      ? '⚠ Default — update if needed'
-                      : undefined
-                  }
-                  FormHelperTextProps={{ sx: { color: '#b26a00', ml: 0 } }}
                 />
               </Grid>
               <Grid item xs={12}>
@@ -1680,6 +1624,8 @@ export default function TeacherTimetable() {
                       !classForm.class_name ||
                       !classForm.subject ||
                       !classForm.grade_level ||
+                      !String(classForm.proficiency || '').trim() ||
+                      !(parseInt(classForm.student_count, 10) > 0) ||
                       !sessionsValid
                     }
                   >

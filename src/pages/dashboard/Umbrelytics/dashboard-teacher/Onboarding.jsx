@@ -30,7 +30,7 @@ export default function Onboarding() {
     location: '',
     subjects: [],
     gradeLevels: [],
-    teachingPhilosophy: '',
+    //teachingPhilosophy: '',
     classification: '',
     qualification: 'None',
     posr: 'NONE',
@@ -240,7 +240,7 @@ export default function Onboarding() {
                   ))}
                 </TextField>
               </Grid>
-              <Grid item xs={12}>
+              {/*<Grid item xs={12}>
                 <TextField
                   fullWidth
                   multiline
@@ -249,7 +249,7 @@ export default function Onboarding() {
                   value={form.teachingPhilosophy}
                   onChange={set('teachingPhilosophy')}
                 />
-              </Grid>
+              </Grid>*/}
             </Grid>
             <Stack direction="row" justifyContent="flex-end" sx={{ mt: 3 }}>
               <LoadingButton

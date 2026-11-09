@@ -22,11 +22,12 @@ import axios from 'axios'
 import { PATH_DASHBOARD } from '../../../../routes/paths'
 import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
 import toolAxios from 'src/_apis_/toolAxios'
-import TodaysClasses from 'src/components/TodaysClasses' // adjust path to where you saved it
-import RecentLessons from 'src/components/RecentLessons' // adjust path to where you saved it
-import RecentNotes from 'src/components/RecentNotes' // adjust path to where you saved it
-import NewsUpdates from 'src/components/NewsUpdates' // adjust path to where you saved it
+import TodaysClasses from 'src/components/TodaysClasses'
+import RecentLessons from 'src/components/RecentLessons'
+import RecentNotes from 'src/components/RecentNotes'
+import NewsUpdates from 'src/components/NewsUpdates'
 import AddClassesDialog from 'src/components/AddClassesDialog'
+import TeachingPhilosophyModal from 'src/components/TeachingPhilosophyModal'
 
 const style = {
   p: 4,
@@ -45,6 +46,7 @@ export default function DashboardTeacher() {
   const [classes, setClasses] = useState([])
   const [classesLoaded, setClassesLoaded] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [philosophyOpen, setPhilosophyOpen] = useState(false)
   const [selectedClassModal, setSelectedClassModal] = useState(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
@@ -245,6 +247,44 @@ export default function DashboardTeacher() {
             </Grid>
           </Box>
 
+          {/* Teaching philosophy — prompt the teacher to set it once onboarded.
+              Hidden entirely once they've entered one. */}
+          {!teacherData?.teaching_philosophy?.trim() && (
+            <Card
+              sx={{
+                mb: 3,
+                p: 3,
+                border: '2px dashed',
+                borderColor: 'primary.main',
+                bgcolor: 'primary.lighter',
+              }}
+            >
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={2}
+                alignItems={{ xs: 'flex-start', sm: 'center' }}
+                justifyContent="space-between"
+              >
+                <Box>
+                  <Typography variant="h6" sx={{ mb: 0.5 }}>
+                    ✍️ Add your teaching philosophy
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    Set it once and every lesson plan is aligned to the core
+                    values behind how you teach — it only takes a minute.
+                  </Typography>
+                </Box>
+                <Button
+                  variant="contained"
+                  onClick={() => setPhilosophyOpen(true)}
+                  sx={{ flexShrink: 0 }}
+                >
+                  Add philosophy
+                </Button>
+              </Stack>
+            </Card>
+          )}
+
           {/* Section 2 — lessons tied to today's classes (else most recent) */}
           <RecentLessons />
 
@@ -298,6 +338,15 @@ export default function DashboardTeacher() {
               </>
             )}
           </Dialog>
+
+          <TeachingPhilosophyModal
+            open={philosophyOpen}
+            onClose={() => {
+              setPhilosophyOpen(false)
+              fetchTeacherDataById()
+            }}
+            teacherId={user.teacherId}
+          />
 
           {/* Add Classes — opens in place from the Set-up-classes CTA and
               closes once a class is added (independents). */}

@@ -12,14 +12,12 @@ import {
   MenuItem,
   Button,
   Paper,
-  Chip,
   Divider,
 } from '@material-ui/core'
 import {
   Close as CloseIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  ReportProblemOutlined as WarnIcon,
 } from '@material-ui/icons'
 import { useSnackbar } from 'notistack'
 import toolAxios from 'src/_apis_/toolAxios'
@@ -52,8 +50,8 @@ const EMPTY_CLASS_ROW = {
   class_name: '',
   subject: '',
   grade_level: '',
-  student_count: 25,
-  proficiency: 'Mixed proficiency',
+  student_count: '',
+  proficiency: '',
   standard_session_length: 60,
   sessions: [{ ...EMPTY_SESSION }],
 }
@@ -129,11 +127,15 @@ export default function AddClassesDialog({
 
   const addSession = (i) =>
     setClassRows((rows) =>
-      rows.map((r, idx) =>
-        idx === i
-          ? { ...r, sessions: [...r.sessions, { ...EMPTY_SESSION }] }
-          : r,
-      ),
+      rows.map((r, idx) => {
+        if (idx !== i) return r
+        // Prefill the new session from the last one entered, so repeated
+        // sessions (same length, room, time — usually just a different day)
+        // don't have to be re-typed. Drop any stale conflict message.
+        const last = r.sessions[r.sessions.length - 1]
+        const seed = last ? { ...last, error: undefined } : { ...EMPTY_SESSION }
+        return { ...r, sessions: [...r.sessions, seed] }
+      }),
     )
 
   const removeSession = (i, si) =>
@@ -164,6 +166,8 @@ export default function AddClassesDialog({
     row.class_name.trim() &&
     row.subject.trim() &&
     row.grade_level.trim() &&
+    String(row.proficiency || '').trim() &&
+    parseInt(row.student_count, 10) > 0 &&
     row.sessions.some((s) => sessionValid(row, s))
 
   const validRowCount = classRows.filter(rowValid).length
@@ -304,7 +308,7 @@ export default function AddClassesDialog({
           subject: row.subject.trim(),
           grade_level: row.grade_level.trim(),
           student_count: parseInt(row.student_count, 10) || 25,
-          proficiency: row.proficiency || 'Mixed proficiency',
+          proficiency: row.proficiency.trim(),
           standard_session_length: len,
           session_type: firstType === 'custom' ? 'double' : firstType,
           academic_year: new Date().getFullYear(),
@@ -386,9 +390,8 @@ export default function AddClassesDialog({
             variant="caption"
             sx={{ color: 'text.secondary', mb: 2, display: 'block' }}
           >
-            Set each session’s day, time and room below. Proficiency and class
-            size start with defaults — set them per class via Edit (look for the
-            amber “Finish setup” marker).
+            Fill in each class’s details (including proficiency and class size),
+            then set each session’s day, time and room below.
           </Typography>
 
           <Stack spacing={2}>
@@ -470,6 +473,41 @@ export default function AddClassesDialog({
                       }
                     />
                   </Grid>
+                  <Grid item xs={12} sm={8}>
+                    <TextField
+                      fullWidth
+                      required
+                      size="small"
+                      label="Proficiency"
+                      placeholder="e.g. mixed levels, mostly beginners, advanced"
+                      value={row.proficiency}
+                      disabled={!!row.created_id}
+                      onChange={(e) =>
+                        updateRow(i, 'proficiency', e.target.value)
+                      }
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      required
+                      size="small"
+                      type="number"
+                      label="Class size"
+                      value={row.student_count}
+                      disabled={!!row.created_id}
+                      onChange={(e) =>
+                        updateRow(
+                          i,
+                          'student_count',
+                          e.target.value === ''
+                            ? ''
+                            : parseInt(e.target.value, 10),
+                        )
+                      }
+                      inputProps={{ min: 1, max: 200 }}
+                    />
+                  </Grid>
                 </Grid>
 
                 {/* Class-level session length */}
@@ -485,7 +523,8 @@ export default function AddClassesDialog({
                     variant="caption"
                     sx={{ color: 'text.secondary' }}
                   >
-                    Session length (min)
+                    Session length (min). This goes for all sessions of this
+                    class.
                   </Typography>
                   <TextField
                     size="small"
@@ -700,9 +739,6 @@ export default function AddClassesDialog({
             justifyContent="flex-end"
             sx={{ mt: 2 }}
           >
-            <Button color="inherit" onClick={onClose}>
-              Done
-            </Button>
             <Button
               variant="contained"
               sx={{ color: '#fff' }}
@@ -711,9 +747,7 @@ export default function AddClassesDialog({
             >
               {creatingRows
                 ? 'Creating...'
-                : `Create & Schedule${
-                    validRowCount ? ` ${validRowCount}` : ''
-                  }`}
+                : `Save${validRowCount ? ` ${validRowCount}` : ''}`}
             </Button>
           </Stack>
         </Box>
@@ -749,22 +783,6 @@ export default function AddClassesDialog({
                         <Typography variant="subtitle2">
                           {cls.class_name}
                         </Typography>
-                        {classNeedsDetails(cls) && (
-                          <Chip
-                            icon={<WarnIcon style={{ fontSize: 13 }} />}
-                            label="Finish setup"
-                            size="small"
-                            title="Add proficiency and class size"
-                            sx={{
-                              height: 18,
-                              fontSize: 10,
-                              fontWeight: 600,
-                              bgcolor: '#fff3e0',
-                              color: '#b26a00',
-                              '& .MuiChip-icon': { color: '#b26a00', ml: 0.5 },
-                            }}
-                          />
-                        )}
                       </Stack>
                       <Typography
                         variant="caption"
