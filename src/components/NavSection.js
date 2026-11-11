@@ -174,16 +174,12 @@ function NavItem({ item, active, disabled }) {
     )
   }
 
-  // External link (opens in a new tab) — e.g. the Lesson Planner tool.
-  // Rendered as a plain anchor so it doesn't go through client-side routing.
+  // External link (another app, e.g. the Lesson Planner tool) — navigates in
+  // the same tab. Rendered as a plain anchor so it doesn't go through
+  // client-side routing.
   if (external) {
     return (
-      <ListItemStyle
-        component="a"
-        href={external}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
+      <ListItemStyle component="a" href={external} rel="noopener noreferrer">
         <ListItemIconStyle>{icon && icon}</ListItemIconStyle>
         <ListItemText disableTypography primary={title} />
         {info && info}

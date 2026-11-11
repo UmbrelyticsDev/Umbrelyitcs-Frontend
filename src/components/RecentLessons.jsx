@@ -50,7 +50,8 @@ export default function RecentLessons() {
   const [loading, setLoading] = useState(true)
   const today = DAY_NAMES[new Date().getDay()]
 
-  // Open a saved lesson in the tool app (separate app → new tab)
+  {
+    /*// Open a saved lesson in the tool app (separate app → new tab)
   const openLesson = (id) =>
     window.open(
       `${TOOL_APP_URL}/saved-lessons?open=${id}`,
@@ -65,7 +66,19 @@ export default function RecentLessons() {
       `${TOOL_APP_URL}/lesson-plan-generator`,
       '_blank',
       'noopener,noreferrer',
-    )
+    )*/
+  }
+
+  // Open a saved lesson in the tool app (same tab)
+  const openLesson = (id) => {
+    window.location.href = `${TOOL_APP_URL}/saved-lessons?open=${id}`
+  }
+
+  // Open the tool's lesson generator (same tab) to create a first lesson from
+  // the empty state.
+  const openLessonGenerator = () => {
+    window.location.href = `${TOOL_APP_URL}/lesson-plan-generator`
+  }
 
   useEffect(() => {
     let active = true

@@ -47,6 +47,7 @@ export default function DashboardTeacher() {
   const [classesLoaded, setClassesLoaded] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [philosophyOpen, setPhilosophyOpen] = useState(false)
+  const [researchEmpty, setResearchEmpty] = useState(false)
   const [selectedClassModal, setSelectedClassModal] = useState(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
@@ -54,6 +55,7 @@ export default function DashboardTeacher() {
   useEffect(() => {
     fetchTeacherDataById()
     fetchTeacherClasses()
+    fetchActionResearch()
   }, [])
 
   const fetchTeacherDataById = async () => {
@@ -68,6 +70,20 @@ export default function DashboardTeacher() {
       }
     } catch (err) {
       console.log(err)
+    }
+  }
+
+  // Action research lives in the tool backend; prompt on the dashboard only
+  // when neither the thesis nor the methodology has been set yet.
+  const fetchActionResearch = async () => {
+    try {
+      const res = await toolAxios.get('/api/teachers/research')
+      const thesis = (res.data?.data?.research_thesis || '').trim()
+      const methodology = (res.data?.data?.research_methodology || '').trim()
+      setResearchEmpty(!thesis && !methodology)
+    } catch (err) {
+      // No tool record / fetch failed → don't prompt.
+      setResearchEmpty(false)
     }
   }
 
@@ -280,6 +296,45 @@ export default function DashboardTeacher() {
                   sx={{ flexShrink: 0 }}
                 >
                   Add philosophy
+                </Button>
+              </Stack>
+            </Card>
+          )}
+
+          {/* Action research — prompt the teacher to start one. Hidden once a
+              thesis or methodology has been entered. */}
+          {researchEmpty && (
+            <Card
+              sx={{
+                mb: 3,
+                p: 3,
+                border: '2px dashed',
+                borderColor: 'info.main',
+                bgcolor: 'info.lighter',
+              }}
+            >
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={2}
+                alignItems={{ xs: 'flex-start', sm: 'center' }}
+                justifyContent="space-between"
+              >
+                <Box>
+                  <Typography variant="h6" sx={{ mb: 0.5 }}>
+                    🔬 Start your action research
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    Record your research thesis and methodology to track your
+                    classroom inquiry and tie your lessons to it.
+                  </Typography>
+                </Box>
+                <Button
+                  variant="contained"
+                  color="info"
+                  onClick={() => navigate('/dashboard/action-research')}
+                  sx={{ flexShrink: 0, color: '#fff' }}
+                >
+                  Set up research
                 </Button>
               </Stack>
             </Card>

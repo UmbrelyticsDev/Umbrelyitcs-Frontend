@@ -305,11 +305,12 @@ export default function TeacherTimetable() {
       prefillDay: entry.day_of_week ?? '',
       prefillStartTime: entry.start_time ?? '',
     })
-    window.open(
+    /*window.open(
       `${TOOL_APP_URL}/lesson-plan-generator?${params.toString()}`,
       '_blank',
       'noopener,noreferrer',
-    )
+    )*/
+    window.location.href = `${TOOL_APP_URL}/lesson-plan-generator?${params.toString()}`
   }
 
   // Duplicate an entry immediately into the next free slot on the same day —

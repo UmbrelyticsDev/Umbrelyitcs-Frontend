@@ -461,12 +461,15 @@ export default function TeacherActionResearch() {
                     </Box>
                     <Button
                       size="small"
-                      onClick={() =>
+                      /*onClick={() =>
                         window.open(
                           `${TOOL_URL}/saved-lessons?open=${lesson.id}`,
                           '_blank',
                         )
-                      }
+                      }*/
+                      onClick={() => {
+                        window.location.href = `${TOOL_URL}/saved-lessons?open=${lesson.id}`
+                      }}
                     >
                       Open
                     </Button>
