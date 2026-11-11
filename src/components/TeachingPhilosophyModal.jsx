@@ -61,17 +61,17 @@ export default function TeachingPhilosophyModal({ open, onClose, teacherId }) {
       )
 
       if (response.data.status === 1) {
-        enqueueSnackbar('Philosophy updated successfully', {
+        enqueueSnackbar('Teaching Style updated successfully', {
           variant: 'success',
         })
         onClose()
         window.location.reload()
       } else {
-        enqueueSnackbar('Failed to update philosophy', { variant: 'error' })
+        enqueueSnackbar('Failed to update teaching style', { variant: 'error' })
       }
     } catch (error) {
       console.error(error)
-      enqueueSnackbar('Error updating philosophy', { variant: 'error' })
+      enqueueSnackbar('Error updating teaching style', { variant: 'error' })
     } finally {
       setLoading(false)
     }
@@ -79,15 +79,17 @@ export default function TeachingPhilosophyModal({ open, onClose, teacherId }) {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Edit Teaching Philosophy</DialogTitle>
+      <DialogTitle>Edit Teaching Style</DialogTitle>
       <DialogContent sx={{ pt: 2 }}>
         {fetching ? (
           <CircularProgress />
         ) : (
           <TextField
             fullWidth
-            label="Teaching Philosophy"
-            placeholder="Describe your teaching philosophy and approach..."
+            label="Teaching Style"
+            placeholder="Tell us how you prefer to teach and engage your students. This helps us create lesson plans that reflect your teaching 
+                style, preferences, and approach to learning. 
+                e.g., I prefer student-led discussions, collaborative activities, practical examples, and minimal lecturing."
             multiline
             rows={5}
             value={philosophy}

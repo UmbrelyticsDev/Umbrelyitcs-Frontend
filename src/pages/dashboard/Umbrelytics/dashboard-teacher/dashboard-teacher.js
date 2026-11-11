@@ -28,6 +28,7 @@ import RecentNotes from 'src/components/RecentNotes'
 import NewsUpdates from 'src/components/NewsUpdates'
 import AddClassesDialog from 'src/components/AddClassesDialog'
 import TeachingPhilosophyModal from 'src/components/TeachingPhilosophyModal'
+import TeachingEnvironmentModal from 'src/components/TeachingEnvironmentModal'
 
 const style = {
   p: 4,
@@ -48,6 +49,8 @@ export default function DashboardTeacher() {
   const [addOpen, setAddOpen] = useState(false)
   const [philosophyOpen, setPhilosophyOpen] = useState(false)
   const [researchEmpty, setResearchEmpty] = useState(false)
+  const [environmentOpen, setEnvironmentOpen] = useState(false)
+  const [environmentEmpty, setEnvironmentEmpty] = useState(false)
   const [selectedClassModal, setSelectedClassModal] = useState(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
@@ -56,6 +59,7 @@ export default function DashboardTeacher() {
     fetchTeacherDataById()
     fetchTeacherClasses()
     fetchActionResearch()
+    fetchTeachingEnvironment()
   }, [])
 
   const fetchTeacherDataById = async () => {
@@ -84,6 +88,21 @@ export default function DashboardTeacher() {
     } catch (err) {
       // No tool record / fetch failed → don't prompt.
       setResearchEmpty(false)
+    }
+  }
+
+  // Teaching environment (school setting / community / student context) lives in
+  // the tool backend (teachers.teaching_location_context) — the same field the
+  // LPT's "Teaching Location & Context" modal writes. Prompt on the dashboard
+  // only when it hasn't been set yet.
+  const fetchTeachingEnvironment = async () => {
+    try {
+      const res = await toolAxios.get('/api/teachers/location-context')
+      const ctx = (res.data?.data?.locationContext || '').trim()
+      setEnvironmentEmpty(!ctx)
+    } catch (err) {
+      // No tool record / fetch failed → don't prompt.
+      setEnvironmentEmpty(false)
     }
   }
 
@@ -301,6 +320,47 @@ export default function DashboardTeacher() {
             </Card>
           )}
 
+          {/* Teaching environment — mirrors the LPT modal. Prompt the teacher
+              to describe their school/community/student context once. Hidden
+              entirely once it's been set. */}
+          {environmentEmpty && (
+            <Card
+              sx={{
+                mb: 3,
+                p: 3,
+                border: '2px dashed',
+                borderColor: 'success.main',
+                bgcolor: 'success.lighter',
+              }}
+            >
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={2}
+                alignItems={{ xs: 'flex-start', sm: 'center' }}
+                justifyContent="space-between"
+              >
+                <Box>
+                  <Typography variant="h6" sx={{ mb: 0.5 }}>
+                    📍 Set your teaching environment
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                    Describe your school&apos;s setting, community and student
+                    context once — the AI tailors every lesson plan&apos;s
+                    examples and activities to your students&apos; world.
+                  </Typography>
+                </Box>
+                <Button
+                  variant="contained"
+                  color="success"
+                  onClick={() => setEnvironmentOpen(true)}
+                  sx={{ flexShrink: 0, color: '#fff' }}
+                >
+                  Set environment
+                </Button>
+              </Stack>
+            </Card>
+          )}
+
           {/* Action research — prompt the teacher to start one. Hidden once a
               thesis or methodology has been entered. */}
           {researchEmpty && (
@@ -401,6 +461,14 @@ export default function DashboardTeacher() {
               fetchTeacherDataById()
             }}
             teacherId={user.teacherId}
+          />
+
+          <TeachingEnvironmentModal
+            open={environmentOpen}
+            onClose={() => {
+              setEnvironmentOpen(false)
+              fetchTeachingEnvironment()
+            }}
           />
 
           {/* Add Classes — opens in place from the Set-up-classes CTA and

@@ -1413,7 +1413,7 @@ export default function TeacherTimetable() {
                 <TextField
                   fullWidth
                   required
-                  label="Proficiency"
+                  label="Proficiency of Students"
                   placeholder="e.g. mixed levels, mostly beginners, advanced"
                   value={classForm.proficiency}
                   onChange={(e) =>

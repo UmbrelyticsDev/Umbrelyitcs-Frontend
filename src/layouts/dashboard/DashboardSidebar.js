@@ -275,7 +275,7 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
           }}
         >
           <ListItemIconStyle>{getIcon('ic_blog')}</ListItemIconStyle>
-          <ListItemText disableTypography primary="Philosophy" />
+          <ListItemText disableTypography primary="Teaching Style" />
         </ListItemStyle>
       )}
 

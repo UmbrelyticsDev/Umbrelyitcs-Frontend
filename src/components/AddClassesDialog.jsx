@@ -478,7 +478,7 @@ export default function AddClassesDialog({
                       fullWidth
                       required
                       size="small"
-                      label="Proficiency"
+                      label="Proficiency of Students"
                       placeholder="e.g. mixed levels, mostly beginners, advanced"
                       value={row.proficiency}
                       disabled={!!row.created_id}
