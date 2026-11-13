@@ -57,6 +57,14 @@ const EMPTY_CLASS_ROW = {
   sessions: [{ ...EMPTY_SESSION }],
 }
 
+const EXAMINATION_BODIES = [
+  'CXC CSEC',
+  'CXC CAPE',
+  'Cambridge IGCSE',
+  'Cambridge A-Level',
+  'GCSE',
+]
+
 const toMinutes = (t) => {
   if (!t) return 0
   const [h, m] = String(t).slice(0, 5).split(':').map(Number)
