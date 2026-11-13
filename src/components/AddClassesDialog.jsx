@@ -51,6 +51,7 @@ const EMPTY_CLASS_ROW = {
   subject: '',
   grade_level: '',
   student_count: '',
+  examination_body: '',
   proficiency: '',
   standard_session_length: 60,
   sessions: [{ ...EMPTY_SESSION }],
@@ -308,6 +309,7 @@ export default function AddClassesDialog({
           subject: row.subject.trim(),
           grade_level: row.grade_level.trim(),
           student_count: parseInt(row.student_count, 10) || 25,
+          examination_body: row.examination_body || null,
           proficiency: row.proficiency.trim(),
           standard_session_length: len,
           session_type: firstType === 'custom' ? 'double' : firstType,
@@ -472,6 +474,26 @@ export default function AddClassesDialog({
                         updateRow(i, 'grade_level', e.target.value)
                       }
                     />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      select
+                      fullWidth
+                      size="small"
+                      label="Examination body"
+                      value={row.examination_body || ''}
+                      disabled={!!row.created_id}
+                      onChange={(e) =>
+                        updateRow(i, 'examination_body', e.target.value)
+                      }
+                    >
+                      <MenuItem value="">None</MenuItem>
+                      {EXAMINATION_BODIES.map((b) => (
+                        <MenuItem key={b} value={b}>
+                          {b}
+                        </MenuItem>
+                      ))}
+                    </TextField>
                   </Grid>
                   <Grid item xs={12} sm={8}>
                     <TextField

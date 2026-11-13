@@ -63,6 +63,7 @@ const EMPTY_CLASS = {
   subject: '',
   grade_level: '',
   student_count: 25,
+  examination_body: '',
   room: '',
   proficiency: 'Mixed proficiency',
   color: '',
@@ -88,6 +89,14 @@ const CLASS_COLORS = [
   '#16A085',
   '#F1C40F',
   '#8E44AD',
+]
+
+const EXAMINATION_BODIES = [
+  'CXC CSEC',
+  'CXC CAPE',
+  'Cambridge IGCSE',
+  'Cambridge A-Level',
+  'GCSE',
 ]
 
 // Accept only #RRGGBB / #RRGGBBAA so a bad value never reaches inline styles.
@@ -457,6 +466,7 @@ export default function TeacherTimetable() {
       subject: cls.subject || '',
       grade_level: cls.grade_level || '',
       student_count: cls.student_count || 25,
+      examination_body: cls.examination_body || '',
       room: cls.room || '',
       proficiency:
         cls.proficiency && cls.proficiency !== 'Mixed proficiency'
@@ -1420,6 +1430,27 @@ export default function TeacherTimetable() {
                     setClassForm({ ...classForm, proficiency: e.target.value })
                   }
                 />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Examination Body"
+                  value={classForm.examination_body || ''}
+                  onChange={(e) =>
+                    setClassForm({
+                      ...classForm,
+                      examination_body: e.target.value,
+                    })
+                  }
+                >
+                  <MenuItem value="">None</MenuItem>
+                  {EXAMINATION_BODIES.map((b) => (
+                    <MenuItem key={b} value={b}>
+                      {b}
+                    </MenuItem>
+                  ))}
+                </TextField>
               </Grid>
               <Grid item xs={12}>
                 <Typography
