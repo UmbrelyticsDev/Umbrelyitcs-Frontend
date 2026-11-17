@@ -32,7 +32,7 @@ export default function Onboarding() {
     gradeLevels: [],
     //teachingPhilosophy: '',
     classification: '',
-    qualification: 'None',
+    qualifications: [],
     posr: 'NONE',
   })
   const [classifications, setClassifications] = useState([])
@@ -86,7 +86,7 @@ export default function Onboarding() {
             `${REST_API_END_POINT}salary/profile/${user.teacherId}`,
             {
               classification: form.classification,
-              qualification: form.qualification,
+              qualifications: form.qualifications,
               posr: form.posr,
             },
           )
@@ -214,11 +214,17 @@ export default function Onboarding() {
                 <TextField
                   select
                   fullWidth
-                  label="Qualification"
-                  value={form.qualification}
-                  onChange={set('qualification')}
+                  label="Qualifications"
+                  value={form.qualifications}
+                  onChange={set('qualifications')}
+                  SelectProps={{
+                    multiple: true,
+                    renderValue: (sel) =>
+                      Array.isArray(sel) && sel.length ? sel.join(', ') : 'None',
+                  }}
+                  helperText="Select all that apply"
                 >
-                  {['None', 'Masters Degree', 'Doctoral Degree'].map((q) => (
+                  {['Diploma', "Bachelor's Degree", 'Masters Degree', 'Doctoral Degree'].map((q) => (
                     <MenuItem key={q} value={q}>
                       {q}
                     </MenuItem>
