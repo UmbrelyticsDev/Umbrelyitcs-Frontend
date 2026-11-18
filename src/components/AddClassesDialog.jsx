@@ -20,7 +20,9 @@ import {
   Delete as DeleteIcon,
 } from '@material-ui/icons'
 import { useSnackbar } from 'notistack'
+import Autocomplete from '@material-ui/lab/Autocomplete'
 import toolAxios from 'src/_apis_/toolAxios'
+import useTeacherClassOptions from 'src/hooks/useTeacherClassOptions'
 
 // Shared "Add Classes" dialog — create one or more classes and place all of
 // their weekly sessions in one action. Used by both the timetable page and the
@@ -89,6 +91,21 @@ export default function AddClassesDialog({
   onDeleteClass,
 }) {
   const { enqueueSnackbar } = useSnackbar()
+  // Subjects/grades the teacher entered at onboarding, offered as options, plus
+  // their default "Timetable Period" (session length), applied to every class.
+  const { subjectOptions, gradeOptions, sessionPeriod } = useTeacherClassOptions()
+
+  // A blank row — pre-filled with the teacher's subject/grade when they
+  // registered exactly one, and the class length set from their Timetable
+  // Period default (falling back to 60 until they've set one).
+  const buildEmptyRow = () => ({
+    ...EMPTY_CLASS_ROW,
+    subject: subjectOptions.length === 1 ? subjectOptions[0] : '',
+    grade_level: gradeOptions.length === 1 ? gradeOptions[0] : '',
+    standard_session_length: sessionPeriod || 60,
+    sessions: [{ ...EMPTY_SESSION }],
+  })
+
   const [classRows, setClassRows] = useState([{ ...EMPTY_CLASS_ROW }])
   const [creatingRows, setCreatingRows] = useState(false)
   const [rowsResult, setRowsResult] = useState(null)
@@ -96,10 +113,32 @@ export default function AddClassesDialog({
   // Fresh form each time the dialog is opened.
   useEffect(() => {
     if (open) {
-      setClassRows([{ ...EMPTY_CLASS_ROW, sessions: [{ ...EMPTY_SESSION }] }])
+      setClassRows([buildEmptyRow()])
       setRowsResult(null)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
+
+  // Options load async (after the dialog is already open), so back-fill the
+  // single registered subject/grade and the Timetable Period into any
+  // not-yet-created row once they arrive.
+  useEffect(() => {
+    const onlySubject = subjectOptions.length === 1 ? subjectOptions[0] : ''
+    const onlyGrade = gradeOptions.length === 1 ? gradeOptions[0] : ''
+    if (!onlySubject && !onlyGrade && !sessionPeriod) return
+    setClassRows((rows) =>
+      rows.map((r) =>
+        r.created_id
+          ? r
+          : {
+              ...r,
+              subject: r.subject || onlySubject,
+              grade_level: r.grade_level || onlyGrade,
+              standard_session_length: sessionPeriod || r.standard_session_length,
+            },
+      ),
+    )
+  }, [subjectOptions, gradeOptions, sessionPeriod])
 
   // ---- Class-row helpers ----
   const updateRow = (i, field, value) =>
@@ -107,11 +146,7 @@ export default function AddClassesDialog({
       rows.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)),
     )
 
-  const addRow = () =>
-    setClassRows((rows) => [
-      ...rows,
-      { ...EMPTY_CLASS_ROW, sessions: [{ ...EMPTY_SESSION }] },
-    ])
+  const addRow = () => setClassRows((rows) => [...rows, buildEmptyRow()])
 
   const removeRow = (i) =>
     setClassRows((rows) =>
@@ -370,7 +405,7 @@ export default function AddClassesDialog({
 
     // Entries were made → close the dialog (and reset for next time).
     if (!hadError && okCount > 0) {
-      setClassRows([{ ...EMPTY_CLASS_ROW, sessions: [{ ...EMPTY_SESSION }] }])
+      setClassRows([buildEmptyRow()])
       if (onClose) onClose()
     }
   }
@@ -462,25 +497,29 @@ export default function AddClassesDialog({
                     />
                   </Grid>
                   <Grid item xs={12} sm={4}>
-                    <TextField
-                      fullWidth
+                    <Autocomplete
+                      freeSolo
                       size="small"
-                      label="Subject"
-                      value={row.subject}
+                      options={subjectOptions}
+                      inputValue={row.subject}
                       disabled={!!row.created_id}
-                      onChange={(e) => updateRow(i, 'subject', e.target.value)}
+                      onInputChange={(e, v) => updateRow(i, 'subject', v)}
+                      renderInput={(params) => (
+                        <TextField {...params} fullWidth label="Subject" />
+                      )}
                     />
                   </Grid>
                   <Grid item xs={12} sm={4}>
-                    <TextField
-                      fullWidth
+                    <Autocomplete
+                      freeSolo
                       size="small"
-                      label="Grade"
-                      value={row.grade_level}
+                      options={gradeOptions}
+                      inputValue={row.grade_level}
                       disabled={!!row.created_id}
-                      onChange={(e) =>
-                        updateRow(i, 'grade_level', e.target.value)
-                      }
+                      onInputChange={(e, v) => updateRow(i, 'grade_level', v)}
+                      renderInput={(params) => (
+                        <TextField {...params} fullWidth label="Grade" />
+                      )}
                     />
                   </Grid>
                   <Grid item xs={12} sm={4}>
@@ -540,38 +579,8 @@ export default function AddClassesDialog({
                   </Grid>
                 </Grid>
 
-                {/* Class-level session length */}
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    mt: 1.5,
-                  }}
-                >
-                  <Typography
-                    variant="caption"
-                    sx={{ color: 'text.secondary' }}
-                  >
-                    Session length (min). This goes for all sessions of this
-                    class.
-                  </Typography>
-                  <TextField
-                    size="small"
-                    type="number"
-                    value={row.standard_session_length}
-                    disabled={!!row.created_id}
-                    onChange={(e) =>
-                      updateRow(
-                        i,
-                        'standard_session_length',
-                        parseInt(e.target.value, 10) || '',
-                      )
-                    }
-                    inputProps={{ min: 10, max: 120 }}
-                    sx={{ width: 110 }}
-                  />
-                </Box>
+                {/* Class length is the teacher's Timetable Period default
+                    (set at onboarding / profile), so it's no longer asked here. */}
 
                 {/* Sessions — one or more per week for this class */}
                 <Typography

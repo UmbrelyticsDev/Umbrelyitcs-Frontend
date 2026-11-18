@@ -16,6 +16,7 @@ import {
   Chip,
   Input,
   Typography,
+  Tooltip,
 } from '@material-ui/core'
 import { useSnackbar } from 'notistack'
 import axios from 'axios'
@@ -122,7 +123,7 @@ export default function TeachingPhilosophyModal({ open, onClose, teacherId }) {
   }
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="med" fullWidth>
       <DialogTitle>Edit Teaching Style</DialogTitle>
       <DialogContent>
         {fetching ? (
@@ -174,10 +175,7 @@ export default function TeachingPhilosophyModal({ open, onClose, teacherId }) {
                           color="primary"
                           checked={selected.indexOf(name) > -1}
                         />
-                        <ListItemText
-                          primary={name}
-                          secondary={cv.description || undefined}
-                        />
+                        <ListItemText primary={name} />
                       </MenuItem>
                     )
                   })
@@ -195,16 +193,23 @@ export default function TeachingPhilosophyModal({ open, onClose, teacherId }) {
                   marginTop: 8,
                 }}
               >
-                {selected.map((name) => (
-                  <Chip
-                    key={name}
-                    label={name}
-                    size="small"
-                    color="primary"
-                    variant="outlined"
-                    onDelete={() => handleRemoveChip(name)}
-                  />
-                ))}
+                {selected.map((name) => {
+                  // Description surfaces only on hover (empty title => MUI renders no tooltip).
+                  const desc =
+                    coreValues.find((cv) => cv.core_value === name)
+                      ?.description || ''
+                  return (
+                    <Tooltip key={name} title={desc} arrow>
+                      <Chip
+                        label={name}
+                        size="small"
+                        color="primary"
+                        variant="outlined"
+                        onDelete={() => handleRemoveChip(name)}
+                      />
+                    </Tooltip>
+                  )
+                })}
               </div>
             )}
 

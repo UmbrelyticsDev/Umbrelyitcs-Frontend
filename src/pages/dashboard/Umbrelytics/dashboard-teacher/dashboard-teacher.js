@@ -157,6 +157,22 @@ export default function DashboardTeacher() {
     return () => clearTimeout(timer)
   }, [])
 
+  // Explicit core-value picks for display (the backend returns these parsed
+  // into an array). hasPhilosophy drives the "inferred from your style" state.
+  const coreValues = Array.isArray(teacherData?.selected_core_values)
+    ? teacherData.selected_core_values
+    : []
+  const hasPhilosophy = !!teacherData?.teaching_philosophy?.trim()
+
+  // Shared square-tile styling so every status tile matches the My Classes grid.
+  const tileSx = {
+    p: 3,
+    height: '100%',
+    minHeight: 220,
+    display: 'flex',
+    flexDirection: 'column',
+  }
+
   return (
     <Page title="Dashboard | Umbrelytics">
       {loading ? (
@@ -282,123 +298,182 @@ export default function DashboardTeacher() {
             </Grid>
           </Box>
 
-          {/* Teaching philosophy — prompt the teacher to set it once onboarded.
-              Hidden entirely once they've entered one. */}
-          {!teacherData?.teaching_philosophy?.trim() && (
-            <Card
-              sx={{
-                mb: 3,
-                p: 3,
-                border: '2px dashed',
-                borderColor: 'primary.main',
-                bgcolor: 'primary.lighter',
-              }}
-            >
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                spacing={2}
-                alignItems={{ xs: 'flex-start', sm: 'center' }}
-                justifyContent="space-between"
-              >
-                <Box>
-                  <Typography variant="h6" sx={{ mb: 0.5 }}>
-                    ✍️ Add your teaching philosophy
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                    Set it once and every lesson plan is aligned to the core
-                    values behind how you teach — it only takes a minute.
-                  </Typography>
-                </Box>
-                <Button
-                  variant="contained"
-                  onClick={() => setPhilosophyOpen(true)}
-                  sx={{ flexShrink: 0 }}
+          {/* ── Your Teaching Profile ───────────────────────────────────────
+              Square status tiles (match the My Classes grid). Core Values is
+              always shown — it displays the teacher's picked values. The
+              Environment and Action Research tiles are onboarding prompts that
+              vanish once set. The teaching-philosophy prompt is folded into the
+              Core Values tile since both are set by the same modal. */}
+          <Box sx={{ mb: 4 }}>
+            <Typography variant="h5" sx={{ mb: 2 }}>
+              Your Teaching Profile
+            </Typography>
+            <Grid container spacing={3}>
+              {/* Core Values — always visible */}
+              <Grid item xs={12} sm={6} md={4}>
+                <Card
+                  sx={{
+                    ...tileSx,
+                    border: '2px solid',
+                    borderColor: 'primary.main',
+                    bgcolor: 'primary.lighter',
+                  }}
                 >
-                  Add philosophy
-                </Button>
-              </Stack>
-            </Card>
-          )}
+                  <Typography variant="h6" sx={{ mb: 0.5 }}>
+                    ⭐ Core Values
+                  </Typography>
+                  {coreValues.length > 0 ? (
+                    <>
+                      <Typography
+                        variant="body2"
+                        sx={{ color: 'text.secondary', mb: 1.5 }}
+                      >
+                        The values your lesson plans are aligned to.
+                      </Typography>
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          flexWrap: 'wrap',
+                          gap: 0.75,
+                          mb: 2,
+                        }}
+                      >
+                        {coreValues.map((v) => (
+                          <Chip
+                            key={v}
+                            label={v}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                          />
+                        ))}
+                      </Box>
+                      <Box sx={{ mt: 'auto' }}>
+                        <Button
+                          size="small"
+                          onClick={() => setPhilosophyOpen(true)}
+                        >
+                          Edit
+                        </Button>
+                      </Box>
+                    </>
+                  ) : hasPhilosophy ? (
+                    <>
+                      <Typography
+                        variant="body2"
+                        sx={{ color: 'text.secondary', mb: 2 }}
+                      >
+                        Currently inferred from your teaching style. Pick
+                        specific values to take control of how lessons are
+                        aligned.
+                      </Typography>
+                      <Box sx={{ mt: 'auto' }}>
+                        <Button
+                          variant="contained"
+                          size="small"
+                          onClick={() => setPhilosophyOpen(true)}
+                        >
+                          Pick core values
+                        </Button>
+                      </Box>
+                    </>
+                  ) : (
+                    <>
+                      <Typography
+                        variant="body2"
+                        sx={{ color: 'text.secondary', mb: 2 }}
+                      >
+                        Set your teaching style once and every lesson plan
+                        aligns to the core values behind how you teach.
+                      </Typography>
+                      <Box sx={{ mt: 'auto' }}>
+                        <Button
+                          variant="contained"
+                          size="small"
+                          onClick={() => setPhilosophyOpen(true)}
+                        >
+                          Add teaching style
+                        </Button>
+                      </Box>
+                    </>
+                  )}
+                </Card>
+              </Grid>
 
-          {/* Teaching environment — mirrors the LPT modal. Prompt the teacher
-              to describe their school/community/student context once. Hidden
-              entirely once it's been set. */}
-          {environmentEmpty && (
-            <Card
-              sx={{
-                mb: 3,
-                p: 3,
-                border: '2px dashed',
-                borderColor: 'success.main',
-                bgcolor: 'success.lighter',
-              }}
-            >
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                spacing={2}
-                alignItems={{ xs: 'flex-start', sm: 'center' }}
-                justifyContent="space-between"
-              >
-                <Box>
-                  <Typography variant="h6" sx={{ mb: 0.5 }}>
-                    📍 Set your teaching environment
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                    Describe your school&apos;s setting, community and student
-                    context once — the AI tailors every lesson plan&apos;s
-                    examples and activities to your students&apos; world.
-                  </Typography>
-                </Box>
-                <Button
-                  variant="contained"
-                  color="success"
-                  onClick={() => setEnvironmentOpen(true)}
-                  sx={{ flexShrink: 0, color: '#fff' }}
-                >
-                  Set environment
-                </Button>
-              </Stack>
-            </Card>
-          )}
+              {/* Teaching environment — prompt until set */}
+              {environmentEmpty && (
+                <Grid item xs={12} sm={6} md={4}>
+                  <Card
+                    sx={{
+                      ...tileSx,
+                      border: '2px dashed',
+                      borderColor: 'success.main',
+                      bgcolor: 'success.lighter',
+                    }}
+                  >
+                    <Typography variant="h6" sx={{ mb: 0.5 }}>
+                      📍 Teaching Environment
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: 'text.secondary', mb: 2 }}
+                    >
+                      Describe your school&apos;s setting, community and student
+                      context once — the AI tailors every lesson to your
+                      students&apos; world.
+                    </Typography>
+                    <Box sx={{ mt: 'auto' }}>
+                      <Button
+                        variant="contained"
+                        color="success"
+                        size="small"
+                        onClick={() => setEnvironmentOpen(true)}
+                        sx={{ color: '#fff' }}
+                      >
+                        Set environment
+                      </Button>
+                    </Box>
+                  </Card>
+                </Grid>
+              )}
 
-          {/* Action research — prompt the teacher to start one. Hidden once a
-              thesis or methodology has been entered. */}
-          {researchEmpty && (
-            <Card
-              sx={{
-                mb: 3,
-                p: 3,
-                border: '2px dashed',
-                borderColor: 'info.main',
-                bgcolor: 'info.lighter',
-              }}
-            >
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                spacing={2}
-                alignItems={{ xs: 'flex-start', sm: 'center' }}
-                justifyContent="space-between"
-              >
-                <Box>
-                  <Typography variant="h6" sx={{ mb: 0.5 }}>
-                    🔬 Start your action research
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                    Record your research thesis and methodology to track your
-                    classroom inquiry and tie your lessons to it.
-                  </Typography>
-                </Box>
-                <Button
-                  variant="contained"
-                  color="info"
-                  onClick={() => navigate('/dashboard/action-research')}
-                  sx={{ flexShrink: 0, color: '#fff' }}
-                >
-                  Set up research
-                </Button>
-              </Stack>
-            </Card>
-          )}
+              {/* Action research — prompt until set */}
+              {researchEmpty && (
+                <Grid item xs={12} sm={6} md={4}>
+                  <Card
+                    sx={{
+                      ...tileSx,
+                      border: '2px dashed',
+                      borderColor: 'info.main',
+                      bgcolor: 'info.lighter',
+                    }}
+                  >
+                    <Typography variant="h6" sx={{ mb: 0.5 }}>
+                      🔬 Action Research
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: 'text.secondary', mb: 2 }}
+                    >
+                      Record your research thesis and methodology to track your
+                      classroom inquiry and tie your lessons to it.
+                    </Typography>
+                    <Box sx={{ mt: 'auto' }}>
+                      <Button
+                        variant="contained"
+                        color="info"
+                        size="small"
+                        onClick={() => navigate('/dashboard/action-research')}
+                        sx={{ color: '#fff' }}
+                      >
+                        Set up research
+                      </Button>
+                    </Box>
+                  </Card>
+                </Grid>
+              )}
+            </Grid>
+          </Box>
 
           {/* Section 2 — lessons tied to today's classes (else most recent) */}
           <RecentLessons />

@@ -33,6 +33,8 @@ import toolAxios from 'src/_apis_/toolAxios'
 import { useSearchParams } from 'react-router-dom'
 import TimetableImportModal from './TimetableImportModal'
 import AddClassesDialog from 'src/components/AddClassesDialog'
+import Autocomplete from '@material-ui/lab/Autocomplete'
+import useTeacherClassOptions from 'src/hooks/useTeacherClassOptions'
 
 // Base URL of the tool app (where the lesson generator lives). Set
 // REACT_APP_TOOL_URL in the website env; falls back to the local tool dev server.
@@ -140,6 +142,9 @@ export default function TeacherTimetable() {
   // Class dialog
   const [editingClass, setEditingClass] = useState(null)
   const [classForm, setClassForm] = useState(EMPTY_CLASS)
+  // Subjects/grades from onboarding, offered as options in the edit form (the
+  // existing value is kept — this is edit-only, so no auto-select).
+  const { subjectOptions, gradeOptions } = useTeacherClassOptions()
   // Editable copies of this class's scheduled sessions (shown in the Edit Class
   // modal). Length/type live here per session, not on the class.
   const [sessionEdits, setSessionEdits] = useState([])
@@ -1385,23 +1390,29 @@ export default function TeacherTimetable() {
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Subject"
-                  value={classForm.subject}
-                  onChange={(e) =>
-                    setClassForm({ ...classForm, subject: e.target.value })
+                <Autocomplete
+                  freeSolo
+                  options={subjectOptions}
+                  inputValue={classForm.subject || ''}
+                  onInputChange={(e, v) =>
+                    setClassForm({ ...classForm, subject: v })
                   }
+                  renderInput={(params) => (
+                    <TextField {...params} fullWidth label="Subject" />
+                  )}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Grade Level"
-                  value={classForm.grade_level}
-                  onChange={(e) =>
-                    setClassForm({ ...classForm, grade_level: e.target.value })
+                <Autocomplete
+                  freeSolo
+                  options={gradeOptions}
+                  inputValue={classForm.grade_level || ''}
+                  onInputChange={(e, v) =>
+                    setClassForm({ ...classForm, grade_level: v })
                   }
+                  renderInput={(params) => (
+                    <TextField {...params} fullWidth label="Grade Level" />
+                  )}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>

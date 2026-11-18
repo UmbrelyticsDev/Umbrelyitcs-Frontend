@@ -174,6 +174,19 @@ export default function TeacherProfileForm({ teacherId, isUmblptool = false }) {
                   <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
+                      type="number"
+                      label="Timetable Period (Mins)"
+                      name="session_period"
+                      value={values.session_period || ''}
+                      onChange={handleChange}
+                      inputProps={{ min: 10, max: 240 }}
+                      helperText="Default length for all your classes."
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
                       label="Teaching Style"
                       name="teaching_style"
                       value={values.teaching_style}

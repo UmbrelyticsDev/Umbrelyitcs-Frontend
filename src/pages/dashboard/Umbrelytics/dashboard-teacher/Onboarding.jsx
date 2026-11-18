@@ -30,6 +30,7 @@ export default function Onboarding() {
     location: '',
     subjects: [],
     gradeLevels: [],
+    sessionPeriod: '',
     //teachingPhilosophy: '',
     classification: '',
     qualifications: [],
@@ -182,6 +183,19 @@ export default function Onboarding() {
                       label="Grade levels (Press Enter after each grade level)"
                     />
                   )}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="Timetable Period (Mins)"
+                  value={form.sessionPeriod}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, sessionPeriod: e.target.value }))
+                  }
+                  inputProps={{ min: 10, max: 240 }}
+                  helperText="One scheduled teaching block. Used as the default length for all your classes."
                 />
               </Grid>
               <Grid item xs={12}>
