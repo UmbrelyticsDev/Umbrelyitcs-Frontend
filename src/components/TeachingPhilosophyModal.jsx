@@ -74,7 +74,9 @@ export default function TeachingPhilosophyModal({ open, onClose, teacherId }) {
   // rest of the form (the picker just shows an empty state).
   const fetchCoreValues = async () => {
     try {
-      const response = await axios.get(`${REST_API_END_POINT}teacher-core-values`)
+      const response = await axios.get(
+        `${REST_API_END_POINT}teacher-core-values`,
+      )
       setCoreValues(
         Array.isArray(response.data?.data) ? response.data.data : [],
       )
@@ -216,7 +218,6 @@ export default function TeachingPhilosophyModal({ open, onClose, teacherId }) {
               rows={5}
               value={philosophy}
               inputProps={{ maxLength: 5000 }}
-              helperText={`Used to infer your core values when you haven't picked any above. ${philosophy.length}/5000`}
               onChange={(e) => setPhilosophy(e.target.value)}
             />
           </div>
