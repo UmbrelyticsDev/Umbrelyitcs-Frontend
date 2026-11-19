@@ -14,9 +14,12 @@ import {
   Chip,
   CircularProgress,
   Alert,
+  TextField,
+  InputAdornment,
 } from '@material-ui/core'
 import { Icon } from '@iconify/react'
 import editFill from '@iconify/icons-eva/edit-2-fill'
+import clockFill from '@iconify/icons-eva/clock-fill'
 import emailFill from '@iconify/icons-eva/email-fill'
 import phoneFill from '@iconify/icons-eva/phone-fill'
 import pinFill from '@iconify/icons-eva/pin-fill'
@@ -51,6 +54,11 @@ export default function TeacherDetailsView() {
   const [teacher, setTeacher] = useState(null)
   const [subjectNames, setSubjectNames] = useState([])
   const [school, setSchool] = useState(null)
+
+  // Inline edit for the teacher's default Timetable Period (session length).
+  const [editingPeriod, setEditingPeriod] = useState(false)
+  const [periodValue, setPeriodValue] = useState('')
+  const [savingPeriod, setSavingPeriod] = useState(false)
 
   // Salary profile (read-only) + on-demand calculation.
   const [salaryProfile, setSalaryProfile] = useState(null)
@@ -154,6 +162,35 @@ export default function TeacherDetailsView() {
   }, [])
 
   const goToEdit = () => navigate('/dashboard/teacher-details/profile')
+
+  const startEditPeriod = () => {
+    setPeriodValue(teacher?.session_period ? String(teacher.session_period) : '')
+    setEditingPeriod(true)
+  }
+
+  // Save just the Timetable Period via the teaching-profile endpoint (which
+  // only updates the fields present in the body).
+  const savePeriod = async () => {
+    try {
+      setSavingPeriod(true)
+      const res = await axios.post(
+        `${REST_API_END_POINT}teacher/teaching-profile/${teacherId}`,
+        { sessionPeriod: periodValue },
+      )
+      if (res.data?.status === 1) {
+        const sp = parseInt(periodValue, 10)
+        setTeacher((t) => ({
+          ...t,
+          session_period: Number.isFinite(sp) && sp > 0 ? sp : null,
+        }))
+        setEditingPeriod(false)
+      }
+    } catch (e) {
+      /* non-fatal; the value simply isn't saved */
+    } finally {
+      setSavingPeriod(false)
+    }
+  }
 
   const handleShowCalculation = async () => {
     setSummaryError('')
@@ -282,6 +319,83 @@ export default function TeacherDetailsView() {
                       label="Location"
                       value={teacher.location || '—'}
                     />
+
+                    {/* Timetable Period — editable default session length for
+                        all classes (saved via the teaching-profile endpoint). */}
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      spacing={1.5}
+                    >
+                      <Box
+                        component={Icon}
+                        icon={clockFill}
+                        sx={{ width: 22, height: 22, color: 'text.secondary' }}
+                      />
+                      <Box sx={{ flexGrow: 1 }}>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: 'text.secondary' }}
+                        >
+                          Timetable Period
+                        </Typography>
+                        {editingPeriod ? (
+                          <Stack
+                            direction="row"
+                            spacing={1}
+                            alignItems="center"
+                            sx={{ mt: 0.5 }}
+                          >
+                            <TextField
+                              size="small"
+                              type="number"
+                              value={periodValue}
+                              onChange={(e) => setPeriodValue(e.target.value)}
+                              inputProps={{ min: 10, max: 240 }}
+                              InputProps={{
+                                endAdornment: (
+                                  <InputAdornment position="end">
+                                    mins
+                                  </InputAdornment>
+                                ),
+                              }}
+                              sx={{ width: 140 }}
+                            />
+                            <Button
+                              size="small"
+                              variant="contained"
+                              disabled={savingPeriod}
+                              onClick={savePeriod}
+                            >
+                              {savingPeriod ? 'Saving…' : 'Save'}
+                            </Button>
+                            <Button
+                              size="small"
+                              color="inherit"
+                              onClick={() => setEditingPeriod(false)}
+                            >
+                              Cancel
+                            </Button>
+                          </Stack>
+                        ) : (
+                          <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                            {teacher.session_period
+                              ? `${teacher.session_period} mins`
+                              : 'Not set'}
+                          </Typography>
+                        )}
+                      </Box>
+                      {!editingPeriod && (
+                        <Button
+                          size="small"
+                          startIcon={<Icon icon={editFill} />}
+                          onClick={startEditPeriod}
+                        >
+                          Edit
+                        </Button>
+                      )}
+                    </Stack>
+
                     <Box>
                       <Stack
                         direction="row"

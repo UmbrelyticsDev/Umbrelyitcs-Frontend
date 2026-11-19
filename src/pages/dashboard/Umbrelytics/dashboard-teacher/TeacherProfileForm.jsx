@@ -9,6 +9,7 @@ import {
   Typography,
   Alert,
   CircularProgress,
+  InputAdornment,
 } from '@material-ui/core'
 import { Formik, Form } from 'formik'
 import * as Yup from 'yup'
@@ -175,11 +176,16 @@ export default function TeacherProfileForm({ teacherId, isUmblptool = false }) {
                     <TextField
                       fullWidth
                       type="number"
-                      label="Timetable Period (Mins)"
+                      label="Timetable Period"
                       name="session_period"
                       value={values.session_period || ''}
                       onChange={handleChange}
                       inputProps={{ min: 10, max: 240 }}
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">mins</InputAdornment>
+                        ),
+                      }}
                       helperText="Default length for all your classes."
                     />
                   </Grid>
