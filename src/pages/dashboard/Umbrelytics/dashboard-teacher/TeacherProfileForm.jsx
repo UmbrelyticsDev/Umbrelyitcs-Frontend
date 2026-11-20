@@ -193,7 +193,7 @@ export default function TeacherProfileForm({ teacherId, isUmblptool = false }) {
                   <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
-                      label="Teaching Style"
+                      label="Teaching Approach"
                       name="teaching_style"
                       value={values.teaching_style}
                       onChange={handleChange}

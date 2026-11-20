@@ -1,0 +1,1165 @@
+import * as Yup from 'yup'
+import { useSnackbar } from 'notistack'
+import { useCallback, useEffect, useState } from 'react'
+import { Form, FormikProvider, useFormik } from 'formik'
+// material
+import { LoadingButton } from '@material-ui/lab'
+import { experimentalStyled as styled } from '@material-ui/core/styles'
+import {
+  Card,
+  Grid,
+  Chip,
+  Stack,
+  Button,
+  Switch,
+  TextField,
+  Typography,
+  Autocomplete,
+  FormHelperText,
+  FormControlLabel,
+  Paper,
+  Box,
+  InputAdornment,
+  IconButton,
+  CardContent,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  CircularProgress,
+  Checkbox,
+  MenuItem,
+} from '@material-ui/core'
+import { Icon } from '@iconify/react'
+import fakeRequest from 'src/utils/fakeRequest'
+import QualificationsHoverSelect from 'src/components/QualificationsHoverSelect'
+import { UploadAvatar } from 'src/components/upload'
+import { fData } from 'src/utils/formatNumber'
+import copyFill from '@iconify/icons-eva/copy-fill'
+import {
+  Email,
+  Password,
+  School as SchoolIcon,
+  CalendarToday as CalendarIcon,
+} from '@material-ui/icons'
+import CopyClipboard from 'src/components/CopyClipboard'
+import Image from '../../../../../../../images/Teacher1.png'
+import { PATH_DASHBOARD } from 'src/routes/paths'
+import { useNavigate } from 'react-router'
+import axios from 'axios'
+import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
+import { Link as RouterLink } from 'react-router-dom'
+import toolAxios from 'src/_apis_/toolAxios'
+import lockFill from '@iconify/icons-eva/lock-fill'
+import ChangePasswordModal from 'src/components/ChangePasswordModal'
+import PhoneField from 'src/components/PhoneField'
+
+// utils
+
+// ----------------------------------------------------------------------
+
+const Subject = [
+  { id: 1, label: 'Mathematics' },
+  { id: 2, label: 'Physics' },
+  { id: 3, label: 'Chemistry' },
+]
+
+const groupByGrade = (classes) => {
+  const groups = {}
+  for (const cls of classes) {
+    if (!groups[cls.gradeName]) groups[cls.gradeName] = []
+    groups[cls.gradeName].push(cls)
+  }
+  return Object.entries(groups)
+}
+
+// --- Dirty-tracking signatures ---------------------------------------------
+// Editable state lives in three places (Formik + salaryProfile + teaching
+// Profile). We serialize only the user-editable fields of each section so the
+// current state can be compared against what was loaded from the server, and
+// the Update button stays greyed out until something actually changes.
+const formikSig = (v = {}) =>
+  JSON.stringify({
+    teacherName: v.teacherName || '',
+    avatarUrl: v.avatarUrl || null,
+    email: v.email || '',
+    phone: v.phone || '',
+    password: v.password || '',
+    teaching_philosophy: v.teaching_philosophy || '',
+    subjects: (v.subjects || [])
+      .map((s) => (s && s.id != null ? s.id : s))
+      .sort(),
+    assignedClasses: [...(v.assignedClasses || [])].sort(),
+  })
+
+const salarySig = (s = {}) =>
+  JSON.stringify({
+    classification: s.classification || '',
+    qualifications: [...(s.qualifications || [])].sort(),
+    posr: s.posr || '',
+    grossMonthly: s.grossMonthly ?? '',
+    pensionPercentage: s.pensionPercentage ?? '',
+    payJTATax: !!s.payJTATax,
+    employmentDate: s.employmentDate || '',
+  })
+
+// Stored qualifications come back as a JSON array string (new multi-select) or,
+// for older rows, a single `qualification` label. Normalise either to an array.
+const parseQualifications = (raw, single) => {
+  if (Array.isArray(raw)) return raw.filter(Boolean)
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const arr = JSON.parse(raw)
+      if (Array.isArray(arr)) return arr.filter(Boolean)
+    } catch (e) {
+      /* not JSON — fall through to the single-label fallback */
+    }
+  }
+  return single && single !== 'None' ? [single] : []
+}
+
+const teachingSig = (t = {}) =>
+  JSON.stringify({
+    institution: t.institution || '',
+    country: t.country || '',
+    location: t.location || '',
+    subjects: [...(t.subjects || [])].sort(),
+    gradeLevels: [...(t.gradeLevels || [])].sort(),
+  })
+// ----------------------------------------------------------------------
+
+export default function AddTeacherForm({
+  subjects,
+  setTeacher,
+  departmentId,
+  schoolId,
+  tempEditId,
+  deptLimit,
+}) {
+  const { enqueueSnackbar } = useSnackbar()
+  const navigate = useNavigate()
+  const user_type = JSON.parse(localStorage.getItem('user_type'))
+  console.log('user_type', user_type)
+  const [data, setData] = useState([])
+  const [subjectsList, setSubjectList] = useState([])
+  const [optionSubjectList, setOptionSubjectList] = useState([])
+  const [assignedSubject, setAssignedSubject] = useState([])
+  const user = JSON.parse(localStorage.getItem('user'))
+
+  const hodEditId = tempEditId || user.teacherId
+  // Add mode = no existing teacher id. Password is only set during creation;
+  // once set it is stored hashed, so there is no edit-password field here.
+  const isAddMode = !hodEditId
+  const theDeparmentId = departmentId || user.departmentId
+  const [subjectClasses, setSubjectClasses] = useState({})
+  const [schoolData, setSchoolData] = useState(null)
+  const [classesLoading, setClassesLoading] = useState(false)
+  const [toolClasses, setToolClasses] = useState([])
+  const [pwModalOpen, setPwModalOpen] = useState(false)
+
+  // --- Salary & Employment profile -------------------------------------------
+  // Held outside Formik so the existing validation schema is untouched. Loaded
+  // from and saved to /salary/profile (independent of the teacher update).
+  const isTeacherProfile = user_type === 4 || user_type === 5
+  const [salaryClassifications, setSalaryClassifications] = useState([])
+  const [salaryProfile, setSalaryProfile] = useState({
+    classification: '',
+    qualifications: [],
+    posr: 'NONE',
+    grossMonthly: '',
+    pensionPercentage: '',
+    payJTATax: false,
+    employmentDate: '',
+  })
+  // Baseline for dirty-tracking — starts as the default profile and is reset to
+  // whatever loads from the server, so editing any field flags the form dirty.
+  const [salaryBaseline, setSalaryBaseline] = useState(() =>
+    salarySig({
+      classification: '',
+      qualifications: [],
+      posr: 'NONE',
+      grossMonthly: '',
+      pensionPercentage: '',
+      payJTATax: false,
+      employmentDate: '',
+    }),
+  )
+  const onSalaryChange = (field) => (e) => {
+    const v = field === 'payJTATax' ? e.target.checked : e.target.value
+    setSalaryProfile((prev) => ({ ...prev, [field]: v }))
+  }
+
+  useEffect(() => {
+    if (!isTeacherProfile) return
+    axios
+      .get(`${REST_API_END_POINT}salary/classifications`)
+      .then((res) => {
+        if (res.data.status === 1)
+          setSalaryClassifications(res.data.result || [])
+      })
+      .catch((e) => console.log('classifications load failed', e))
+
+    if (hodEditId) {
+      axios
+        .get(`${REST_API_END_POINT}salary/profile/${hodEditId}`)
+        .then((res) => {
+          const p = res.data.result
+          if (res.data.status === 1 && p) {
+            const loaded = {
+              classification: p.classification || '',
+              qualifications: parseQualifications(
+                p.qualifications,
+                p.qualification,
+              ),
+              posr: p.posr || 'NONE',
+              grossMonthly:
+                p.gross_monthly != null ? String(p.gross_monthly) : '',
+              pensionPercentage:
+                p.pension_percentage != null
+                  ? String(p.pension_percentage)
+                  : '',
+              payJTATax: !!p.pay_jta_tax,
+              employmentDate: p.employment_date
+                ? String(p.employment_date).slice(0, 10)
+                : '',
+            }
+            setSalaryProfile(loaded)
+            setSalaryBaseline(salarySig(loaded))
+          }
+        })
+        .catch((e) => console.log('salary profile load failed', e))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTeacherProfile, hodEditId])
+
+  useEffect(() => {
+    if (user_type === 4) {
+      fetchSchoolInfo()
+    }
+  }, [user_type, data.schoolId])
+
+  useEffect(() => {
+    fetchTeacherDetailsById()
+    fetchSubjectsByDepartmentId()
+  }, [hodEditId])
+
+  const fetchTeacherDetailsById = async () => {
+    await axios
+      .get(`${REST_API_END_POINT}get-teacher-details-for-editing/${hodEditId}`)
+      .then((res) => {
+        if (res.data.status === 1) {
+          setData(res.data.result)
+
+          console.log(res.data.result)
+        } else {
+          console.log('not getting data')
+        }
+      })
+      .catch((err) => console.log(err))
+  }
+  const fetchSubjectsByDepartmentId = async () => {
+    await axios
+      .get(`${REST_API_END_POINT}get-subject/${theDeparmentId}`)
+      .then((res) => {
+        if (res.data.status === 1) {
+          const filteredSubjects = res.data.result.filter(
+            (subject) => subject.status === 1,
+          )
+          //  const filteredSubjectsOption = res.data.result.filter(subject => subject.status === 1 && subject.assigned === 0);
+          const filteredSubjectsOption = res.data.result.filter(
+            (subject) => subject.status === 1,
+          )
+
+          setSubjectList(filteredSubjects)
+          setOptionSubjectList(filteredSubjectsOption)
+
+          console.log(filteredSubjects, 'result')
+        } else {
+          setSubjectList([])
+          console.log('not getting data')
+        }
+      })
+      .catch((err) => console.log(err))
+  }
+
+  useEffect(() => {
+    const subjectIds = data.subjects ? data.subjects.split(',') : []
+
+    const selectedSubjects = subjectIds
+      .map((id) => subjectsList.find((subject) => subject.id === parseInt(id)))
+      .filter(Boolean)
+
+    setAssignedSubject(selectedSubjects)
+
+    console.log('selectedSubjects', selectedSubjects)
+  }, [data, subjectsList])
+
+  useEffect(() => {
+    if (data.id) {
+      const nextValues = {
+        teacherName: data.name || '',
+        avatarUrl: data.image || null,
+        // Never load the stored (hashed) password into the form. In edit mode
+        // this stays empty, so EditTeacher's `if (values.password)` is false
+        // and the password is left untouched — password changes go through the
+        // dedicated Change Password flow instead.
+        password: '',
+        email: data.email || '',
+        // Digits only (incl. country code, no '+') for the PhoneField; the '+'
+        // is re-added on submit.
+        phone: String(data.phoneNumber || '').replace(/\D/g, ''),
+        subjects: assignedSubject.length ? assignedSubject : [],
+        assignedClasses: [],
+        schoolId: data.schoolId || schoolId || null,
+        departmentId:
+          data.departmentId || departmentId || theDeparmentId || null,
+        status: data?.status,
+        hodId: data?.id,
+        teaching_philosophy: data.teaching_philosophy || '',
+      }
+      formik.setValues(nextValues)
+      // Re-baseline so loading the record doesn't itself count as a change.
+      setFormikBaseline(formikSig(nextValues))
+    }
+  }, [data, assignedSubject])
+
+  const NewBlogSchema = Yup.object().shape({
+    teacherName: Yup.string()
+      .required('Teacher Name is required')
+      .matches(
+        /^[a-zA-Z\s]+$/,
+        'Teacher Name should not contain numbers or special characters',
+      )
+      .min(2, 'Too Short!')
+      .max(50, 'Too Long!'),
+    avatarUrl: Yup.mixed(),
+    //avatarUrl: Yup.mixed().required('Teacher Image is required'),
+    email: Yup.string()
+      .required('Email is required')
+      .email('Email must be a valid email address')
+      .test(
+        'at-least-one-letter',
+        'Email must contain at least one letter before @',
+        (value) => {
+          if (!value) return false
+          const beforeAtSymbol = value.split('@')[0]
+          return /[a-zA-Z]/.test(beforeAtSymbol)
+        },
+      ),
+    // Password is only required when creating a teacher. In edit mode it is
+    // already set (and stored hashed), so there is no password field to fill.
+    password: isAddMode
+      ? Yup.string().required('Password is required')
+      : Yup.string(),
+    phone: Yup.string()
+      .required('Phone Number is required')
+      .min(8, 'Enter a valid phone number'),
+    // Teachers don't assign their own subjects, so it's only required when an
+    // admin/HOD is creating or editing a teacher (user types 1-3).
+    subjects:
+      user_type === 4 || user_type === 5
+        ? Yup.array()
+        : Yup.array().min(1, 'At least one Subject is required'),
+    teaching_philosophy: Yup.string(),
+  })
+
+  const formik = useFormik({
+    // enableReinitialize:true,
+    initialValues: {
+      // Always a defined string so the Teacher Name input mounts controlled.
+      // (`data` starts as [], which is truthy, so `data.name` would be
+      // undefined here — that flip to a string later is what triggered the
+      // "uncontrolled to controlled" warning.) The setValues effect populates
+      // this from `data` once the teacher record loads.
+      teacherName: '',
+      avatarUrl: null,
+      password: '',
+      email: '',
+      phone: '',
+      subjects: [],
+      assignedClasses: [],
+      departmentId: theDeparmentId || null,
+      schoolId: schoolId || null,
+      teaching_philosophy: '',
+    },
+    validationSchema: NewBlogSchema,
+    onSubmit: async (values, { setSubmitting, resetForm }) => {
+      try {
+        // await fakeRequest(500);
+        // resetForm();
+        // enqueueSnackbar(user_type !==4 ? 'Teacher Added Successfully' : 'Profile Updated Succesfully', { variant: 'success' });
+        // user_type !== 4 ? setTeacher(false) : navigate(PATH_DASHBOARD.general.teacherDetails)
+        // console.log('Form Values : ',values);
+        // Re-add the '+' so the number is stored in full international form.
+        const payloadValues = {
+          ...values,
+          phone: values.phone ? `+${values.phone}` : '',
+        }
+        const response = await axios.post(
+          `${REST_API_END_POINT}${
+            hodEditId ? 'update-teacher/' + hodEditId : 'add-teacher'
+          }`,
+          { values: payloadValues },
+        )
+        if (response.data.status === 2) {
+          enqueueSnackbar(`Account Already Exist with ${values.email}`, {
+            variant: 'warning',
+          })
+        } else if (response.data.status == 1) {
+          // Persist the Salary & Employment profile alongside the teacher
+          // update (independent endpoint; the teacher update stays untouched).
+          if (user_type === 4 || user_type === 5) {
+            try {
+              await axios.post(
+                `${REST_API_END_POINT}salary/profile/${hodEditId}`,
+                salaryProfile,
+              )
+            } catch (e) {
+              console.log('Salary profile save failed', e)
+            }
+          }
+          window.location.reload()
+          enqueueSnackbar(
+            user_type !== 4 && user_type !== 5
+              ? `Teacher ${hodEditId ? 'Updated' : 'Added'} Successfully`
+              : 'Profile Updated Succesfully',
+            { variant: 'success' },
+          )
+          setTeacher(false)
+        } else {
+          enqueueSnackbar(
+            `Failed ${hodEditId ? 'Updating' : 'Adding'} Teacher`,
+            { variant: 'error' },
+          )
+        }
+      } catch (error) {
+        console.error(error)
+        setSubmitting(false)
+      }
+    },
+  })
+
+  const {
+    errors,
+    values,
+    touched,
+    handleSubmit,
+    isSubmitting,
+    setFieldValue,
+    getFieldProps,
+  } = formik
+
+  // Baseline of the Formik section — the empty default until a record loads,
+  // then reset to the loaded values (see the setValues effect above). In add
+  // mode it stays empty, so typing anything flags the form dirty.
+  const [formikBaseline, setFormikBaseline] = useState(() => formikSig({}))
+
+  useEffect(() => {
+    const loadClasses = async () => {
+      const map = {}
+      for (const subj of values.subjects || []) {
+        try {
+          const res = await axios.get(
+            `${REST_API_END_POINT}get-classes-by-subject/${subj.id}`,
+          )
+          map[subj.id] = res.data.status === 1 ? res.data.result : []
+        } catch {
+          map[subj.id] = []
+        }
+      }
+      setSubjectClasses(map)
+    }
+    if (values.subjects?.length) loadClasses()
+    else setSubjectClasses({})
+  }, [values.subjects])
+
+  const handleDropAvatar = useCallback(
+    (acceptedFiles) => {
+      const file = acceptedFiles[0]
+      if (file) {
+        uploadImgToBackend(file)
+      }
+    },
+    [setFieldValue],
+  )
+
+  // Upload the avatar through our backend to Cloudflare R2 (replaces the old
+  // Firebase upload). On success, store the returned public URL in the form —
+  // it's sent as values.avatarUrl on submit and saved to teacher.image, exactly
+  // as the Firebase URL used to be.
+  const uploadImgToBackend = async (file) => {
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('folder', 'avatars')
+
+      const res = await axios.post(
+        `${REST_API_END_POINT}upload/image`,
+        formData,
+      )
+
+      if (res.data.status === 1) {
+        setFieldValue('avatarUrl', res.data.url)
+      } else {
+        enqueueSnackbar(res.data.message || 'Image upload failed', {
+          variant: 'error',
+        })
+      }
+    } catch (error) {
+      console.error('Upload failed:', error)
+      enqueueSnackbar('Image upload failed', { variant: 'error' })
+    }
+  }
+
+  // --- Teaching profile (institution, country, location, subjects, grades) ---
+  // Editable here and also collected at first-login onboarding. Saved through
+  // the teaching-profile endpoint, separate from the teacher update.
+  const [teachingProfile, setTeachingProfile] = useState({
+    institution: '',
+    country: '',
+    location: '',
+    subjects: [],
+    gradeLevels: [],
+  })
+  const [teachingBaseline, setTeachingBaseline] = useState(() =>
+    teachingSig({
+      institution: '',
+      country: '',
+      location: '',
+      subjects: [],
+      gradeLevels: [],
+    }),
+  )
+  const onTeachingChange = (field) => (e) =>
+    setTeachingProfile((p) => ({ ...p, [field]: e.target.value }))
+
+  useEffect(() => {
+    if (!data || !data.id) return
+    const toArr = (v) =>
+      v
+        ? String(v)
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : []
+    const loaded = {
+      institution: data.institution || '',
+      country: data.country || '',
+      location: data.location || '',
+      // Only independents keep free-text subjects; school teachers use ids.
+      subjects: user_type === 5 ? toArr(data.subjects) : [],
+      gradeLevels: toArr(data.grade_levels),
+    }
+    setTeachingProfile(loaded)
+    setTeachingBaseline(teachingSig(loaded))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data])
+
+  const saveTeachingProfile = async () => {
+    if (!isTeacherProfile || !hodEditId) return
+    const payload = {
+      institution: teachingProfile.institution,
+      country: teachingProfile.country,
+      location: teachingProfile.location,
+      gradeLevels: teachingProfile.gradeLevels,
+    }
+    if (user_type === 5) payload.subjects = teachingProfile.subjects
+    try {
+      await axios.post(
+        `${REST_API_END_POINT}teacher/teaching-profile/${hodEditId}`,
+        payload,
+      )
+    } catch (e) {
+      console.log('Teaching profile save failed', e)
+    }
+  }
+
+  const handleGoBack = () => {
+    window.history.back()
+  }
+
+  const fetchSchoolInfo = async () => {
+    const sid = data.schoolId || schoolId
+    if (!sid) return
+    try {
+      const res = await axios.get(
+        `${REST_API_END_POINT}getSchool-details/${sid}`,
+      )
+      if (res.data.status === 1) setSchoolData(res.data.result)
+    } catch (err) {
+      console.log('Could not fetch school info', err)
+    }
+  }
+
+  // The submit button greys out until something actually changes in any of the
+  // three editable sections (Formik fields, Salary & Employment, Teaching).
+  // Computed here, after all three states and their baselines are declared.
+  const isDirty =
+    formikSig(values) !== formikBaseline ||
+    salarySig(salaryProfile) !== salaryBaseline ||
+    teachingSig(teachingProfile) !== teachingBaseline
+
+  return (
+    <>
+      <FormikProvider value={formik}>
+        <Form noValidate autoComplete="off" onSubmit={handleSubmit}>
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={12}>
+              <Box sx={{ width: 88, flexShrink: 0 }}>
+                <UploadAvatar
+                  disabled={tempEditId ? false : deptLimit}
+                  accept="image/*"
+                  file={values.avatarUrl}
+                  maxSize={10485760}
+                  onDrop={handleDropAvatar}
+                  onDelete={() => setFieldValue('avatarUrl', null)}
+                  error={Boolean(touched.avatarUrl && errors.avatarUrl)}
+                />
+              </Box>
+
+              <Paper
+                variant={user_type === 4 || user_type === 5 ? 'outlined' : ''}
+                sx={{ p: 3 }}
+              >
+                <Stack
+                  direction={{ xs: 'column', sm: 'column', md: 'column' }}
+                  spacing={{ xs: 2, sm: 2, md: 2 }}
+                >
+                  <TextField
+                    fullWidth
+                    label="Teacher Name"
+                    InputLabelProps={{ shrink: true }}
+                    {...getFieldProps('teacherName')}
+                    error={Boolean(touched.teacherName && errors.teacherName)}
+                    helperText={touched.teacherName && errors.teacherName}
+                    disabled={tempEditId ? false : deptLimit}
+                  />
+                </Stack>
+
+                <Stack
+                  direction={{ xs: 'column', sm: 'row', md: 'row' }}
+                  sx={{ mt: 2.5 }}
+                  spacing={{ xs: 3, sm: 2, md: 2 }}
+                >
+                  <CopyClipboard
+                    label="Teacher Email"
+                    placeholder="Teacher Email"
+                    value={values.email}
+                    onChange={(e) => setFieldValue('email', e.target.value)}
+                    error={Boolean(touched.email && errors.email)}
+                    helperText={touched.email && errors.email}
+                    disabled={tempEditId ? false : deptLimit}
+                  />
+                  {/* Password is only shown when creating a teacher. In edit
+                      mode the password is already set and stored hashed, so
+                      there is no password field here. */}
+                  {isAddMode && (
+                    <CopyClipboard
+                      label="Teacher Password"
+                      placeholder="Teacher Password"
+                      value={values.password}
+                      onChange={(e) =>
+                        setFieldValue('password', e.target.value)
+                      }
+                      error={Boolean(touched.password && errors.password)}
+                      helperText={touched.password && errors.password}
+                    />
+                  )}
+                  <PhoneField
+                    label="Teacher Phone Number"
+                    value={values.phone}
+                    onChange={(v) => setFieldValue('phone', v)}
+                    error={Boolean(touched.phone && errors.phone)}
+                    helperText={touched.phone && errors.phone}
+                  />
+                </Stack>
+
+                {/* Change Password — self-service, only on your own profile.
+                    Admins/HODs editing another teacher don't know that
+                    teacher's current password, so it isn't shown for them. */}
+                {(user_type === 4 || user_type === 5) && hodEditId && (
+                  <Stack direction="row" sx={{ mt: 2 }}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<Icon icon={lockFill} />}
+                      onClick={() => setPwModalOpen(true)}
+                    >
+                      Change Password
+                    </Button>
+                  </Stack>
+                )}
+
+                {user_type !== 4 && user_type !== 5 && (
+                  <Stack
+                    direction={{ xs: 'column', sm: 'column', md: 'column' }}
+                    sx={{ mt: 2.5 }}
+                    spacing={{ xs: 2, sm: 2, md: 2 }}
+                  >
+                    <Autocomplete
+                      disabled={tempEditId ? false : deptLimit}
+                      multiple
+                      freeSolo={false}
+                      value={values.subjects}
+                      onChange={(event, newValue) => {
+                        console.log(newValue)
+                        setFieldValue('subjects', newValue)
+                        console.log('11111', newValue)
+                      }}
+                      options={optionSubjectList}
+                      getOptionLabel={(option) => option.subjectName || ''}
+                      renderTags={(value, getTagProps) =>
+                        value.map((option, index) => (
+                          <Chip
+                            color="primary"
+                            key={option.id}
+                            size="small"
+                            label={option.subjectName}
+                            {...getTagProps({ index })}
+                          />
+                        ))
+                      }
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Assign Subjects.."
+                          error={Boolean(touched.subjects && errors.subjects)}
+                          helperText={touched.subjects && errors.subjects}
+                        />
+                      )}
+                    />
+                    {(values.subjects || []).map((subj) => (
+                      <Box
+                        key={subj.id}
+                        sx={{
+                          mt: 2,
+                          p: 2,
+                          border: '1px solid #eee',
+                          borderRadius: 1,
+                        }}
+                      >
+                        <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                          {subj.subjectName} — Assign Classes
+                        </Typography>
+                        {(subjectClasses[subj.id] || []).length === 0 ? (
+                          <Typography variant="caption" color="text.secondary">
+                            No classes available for this subject.
+                          </Typography>
+                        ) : (
+                          groupByGrade(subjectClasses[subj.id]).map(
+                            ([gradeName, classes]) => (
+                              <Box key={gradeName} sx={{ ml: 1, mt: 1 }}>
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  sx={{ fontWeight: 'bold' }}
+                                >
+                                  {gradeName}
+                                </Typography>
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    ml: 1,
+                                  }}
+                                >
+                                  {classes.map((cls) => (
+                                    <FormControlLabel
+                                      key={cls.id}
+                                      control={
+                                        <Checkbox
+                                          size="small"
+                                          checked={(
+                                            values.assignedClasses || []
+                                          ).includes(cls.id)}
+                                          onChange={(e) => {
+                                            const cur =
+                                              values.assignedClasses || []
+                                            setFieldValue(
+                                              'assignedClasses',
+                                              e.target.checked
+                                                ? [...cur, cls.id]
+                                                : cur.filter(
+                                                    (id) => id !== cls.id,
+                                                  ),
+                                            )
+                                          }}
+                                        />
+                                      }
+                                      label={cls.className}
+                                    />
+                                  ))}
+                                </Box>
+                              </Box>
+                            ),
+                          )
+                        )}
+                      </Box>
+                    ))}
+                  </Stack>
+                )}
+
+                {/* NEW: Teaching Philosophy Field */}
+                {(tempEditId || user_type === 4 || user_type === 5) && (
+                  <Stack
+                    direction={{ xs: 'column', sm: 'column', md: 'column' }}
+                    sx={{ mt: 2.5 }}
+                    spacing={{ xs: 2, sm: 2, md: 2 }}
+                  >
+                    <TextField
+                      fullWidth
+                      label="Teaching Philosophy"
+                      placeholder="Describe your teaching philosophy and approach..."
+                      multiline
+                      rows={3}
+                      {...getFieldProps('teaching_philosophy')}
+                      error={Boolean(
+                        touched.teaching_philosophy &&
+                          errors.teaching_philosophy,
+                      )}
+                      helperText={
+                        touched.teaching_philosophy &&
+                        errors.teaching_philosophy
+                      }
+                    />
+                  </Stack>
+                )}
+
+                <Box
+                  sx={{
+                    mt: 2.5,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2,
+                  }}
+                ></Box>
+              </Paper>
+
+              {(user_type === 4 || user_type === 5) && (
+                <Card variant="outlined" sx={{ mt: 3 }}>
+                  <CardContent>
+                    <Typography variant="subtitle1" sx={{ mb: 0.5 }}>
+                      Employment Information
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{ color: 'text.secondary' }}
+                    >
+                      Used to calculate your band, point and pay. View the
+                      calculation from your Teacher Details page.
+                    </Typography>
+                    <Divider sx={{ my: 2 }} />
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          select
+                          fullWidth
+                          label="Classification"
+                          value={salaryProfile.classification}
+                          onChange={onSalaryChange('classification')}
+                        >
+                          {salaryClassifications.map((c) => (
+                            <MenuItem
+                              key={c.classification_name}
+                              value={c.classification_name}
+                            >
+                              {c.classification_name} (Band {c.band})
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <QualificationsHoverSelect
+                          value={salaryProfile.qualifications}
+                          onChange={(next) =>
+                            setSalaryProfile((prev) => ({
+                              ...prev,
+                              qualifications: next,
+                            }))
+                          }
+                          helperText="Masters or Doctoral adds the advanced-degree allowance"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          select
+                          fullWidth
+                          label="Post of Special Responsibility"
+                          value={salaryProfile.posr}
+                          onChange={onSalaryChange('posr')}
+                        >
+                          {['NONE', 'POSR I', 'POSR II', 'POSR III'].map(
+                            (p) => (
+                              <MenuItem key={p} value={p}>
+                                {p}
+                              </MenuItem>
+                            ),
+                          )}
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          type="number"
+                          label="Gross monthly salary (JMD)"
+                          value={salaryProfile.grossMonthly}
+                          onChange={onSalaryChange('grossMonthly')}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          type="number"
+                          label="Pension contribution (%)"
+                          value={salaryProfile.pensionPercentage}
+                          onChange={onSalaryChange('pensionPercentage')}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          type="date"
+                          label="Employment start date"
+                          InputLabelProps={{ shrink: true }}
+                          value={salaryProfile.employmentDate}
+                          onChange={onSalaryChange('employmentDate')}
+                        />
+                      </Grid>
+                      <Grid item xs={12}>
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              checked={salaryProfile.payJTATax}
+                              onChange={onSalaryChange('payJTATax')}
+                            />
+                          }
+                          label="I pay JTA dues (1%)"
+                        />
+                      </Grid>
+                    </Grid>
+                  </CardContent>
+                </Card>
+              )}
+
+              {(user_type === 4 || user_type === 5) && (
+                <Card variant="outlined" sx={{ mt: 3 }}>
+                  <CardContent>
+                    <Typography variant="subtitle1" sx={{ mb: 2 }}>
+                      Teaching Profile
+                    </Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12}>
+                        <TextField
+                          fullWidth
+                          label="Institution / School"
+                          value={teachingProfile.institution}
+                          onChange={onTeachingChange('institution')}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="Country"
+                          value={teachingProfile.country}
+                          onChange={onTeachingChange('country')}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={6}>
+                        <TextField
+                          fullWidth
+                          label="Location (city / parish)"
+                          value={teachingProfile.location}
+                          onChange={onTeachingChange('location')}
+                        />
+                      </Grid>
+                      {user_type === 5 && (
+                        <Grid item xs={12}>
+                          <Autocomplete
+                            multiple
+                            freeSolo
+                            options={[]}
+                            value={teachingProfile.subjects}
+                            onChange={(e, v) =>
+                              setTeachingProfile((p) => ({ ...p, subjects: v }))
+                            }
+                            renderInput={(params) => (
+                              <TextField
+                                {...params}
+                                label="Subjects (type and press Enter)"
+                              />
+                            )}
+                          />
+                        </Grid>
+                      )}
+                      <Grid item xs={12}>
+                        <Autocomplete
+                          multiple
+                          freeSolo
+                          options={[]}
+                          value={teachingProfile.gradeLevels}
+                          onChange={(e, v) =>
+                            setTeachingProfile((p) => ({
+                              ...p,
+                              gradeLevels: v,
+                            }))
+                          }
+                          renderInput={(params) => (
+                            <TextField
+                              {...params}
+                              label="Grade levels (type and press Enter)"
+                            />
+                          )}
+                        />
+                      </Grid>
+                    </Grid>
+                  </CardContent>
+                </Card>
+              )}
+
+              {user_type === 4 && (
+                <>
+                  {/* School */}
+                  <Card variant="outlined" sx={{ mt: 3 }}>
+                    <CardContent>
+                      <Stack direction="row" alignItems="center" spacing={1.5}>
+                        <SchoolIcon color="primary" />
+                        <Box>
+                          <Typography variant="subtitle2">
+                            {schoolData?.school_name || '—'}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            sx={{ color: 'text.secondary' }}
+                          >
+                            {schoolData?.location || 'Location not set'}
+                          </Typography>
+                        </Box>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+
+                  {/* Classes */}
+                  <Card variant="outlined" sx={{ mt: 2 }}>
+                    <CardContent>
+                      <Stack
+                        direction="row"
+                        justifyContent="space-between"
+                        alignItems="center"
+                        sx={{ mb: 1 }}
+                      >
+                        <Typography variant="subtitle2">My Classes</Typography>
+                        <Button
+                          size="small"
+                          component={RouterLink}
+                          to={PATH_DASHBOARD.general.teacherTimetable}
+                          startIcon={<CalendarIcon />}
+                        >
+                          Manage
+                        </Button>
+                      </Stack>
+                      <Divider sx={{ mb: 1 }} />
+
+                      {classesLoading ? (
+                        <Box sx={{ textAlign: 'center', py: 2 }}>
+                          <CircularProgress size={22} />
+                        </Box>
+                      ) : toolClasses.length === 0 ? (
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            color: 'text.disabled',
+                            fontStyle: 'italic',
+                            py: 1,
+                          }}
+                        >
+                          No classes yet — use Manage to create one.
+                        </Typography>
+                      ) : (
+                        <List dense disablePadding>
+                          {toolClasses.map((cls) => (
+                            <ListItem
+                              key={cls.id}
+                              button
+                              component={RouterLink}
+                              to={`${PATH_DASHBOARD.general.teacherTimetable}?editClass=${cls.id}`}
+                              sx={{ borderRadius: 1 }}
+                            >
+                              <ListItemText
+                                primary={cls.class_name}
+                                secondary={`${cls.subject} • ${
+                                  cls.grade_level
+                                } • ${cls.student_count || 0} students${
+                                  cls.room ? ` • Room ${cls.room}` : ''
+                                }`}
+                              />
+                            </ListItem>
+                          ))}
+                        </List>
+                      )}
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+
+              <Stack direction="row" justifyContent="flex-end" sx={{ mt: 3 }}>
+                <LoadingButton
+                  sx={{ ...(isDirty && { color: '#fff' }) }}
+                  color="success"
+                  type="submit"
+                  variant="contained"
+                  disabled={!isDirty || isSubmitting}
+                  onClick={() => {
+                    if (isTeacherProfile && hodEditId) {
+                      axios
+                        .post(
+                          `${REST_API_END_POINT}salary/profile/${hodEditId}`,
+                          salaryProfile,
+                        )
+                        .catch((e) =>
+                          console.log('Salary profile save failed', e),
+                        )
+                    }
+                    saveTeachingProfile()
+                  }}
+                  loading={isSubmitting}
+                  loadingIndicator={
+                    user_type !== 4 && user_type !== 5
+                      ? 'Adding...'
+                      : 'Updating...'
+                  }
+                >
+                  {user_type !== 4 && user_type !== 5
+                    ? `${hodEditId ? 'Update' : 'Add'} Teacher`
+                    : 'Update Profile'}
+                </LoadingButton>
+                <Button
+                  type="button"
+                  color="error"
+                  variant="outlined"
+                  onClick={() =>
+                    user_type === 1
+                      ? setTeacher(false)
+                      : user_type === 2
+                      ? setTeacher(false)
+                      : user_type === 3
+                      ? setTeacher(false)
+                      : user_type === 4 || user_type === 5
+                      ? handleGoBack()
+                      : ''
+                  }
+                  sx={{ ml: 1.5 }}
+                >
+                  Cancel
+                </Button>
+              </Stack>
+            </Grid>
+          </Grid>
+        </Form>
+      </FormikProvider>
+
+      <ChangePasswordModal
+        open={pwModalOpen}
+        onClose={() => setPwModalOpen(false)}
+      />
+    </>
+  )
+}

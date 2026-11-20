@@ -22,10 +22,10 @@ import { useSnackbar } from 'notistack'
 import axios from 'axios'
 import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
 
-// Website-side Teaching Style editor — kept in parity with the tool's modal.
+// Website-side Teaching Approach editor — kept in parity with the tool's modal.
 // Two ways to set the core values the AI uses:
 //   1) Pick them directly from the stored list (these take precedence), or
-//   2) Write a teaching style/philosophy and let the AI infer them.
+//   2) Write a Teaching Approach/philosophy and let the AI infer them.
 // Picks are saved on the website teacher record and synced to the tool, where
 // lesson generation applies them (explicit picks override the inferred match).
 export default function TeachingPhilosophyModal({ open, onClose, teacherId }) {
@@ -65,7 +65,7 @@ export default function TeachingPhilosophyModal({ open, onClose, teacherId }) {
       }
     } catch (error) {
       console.error('Error fetching philosophy:', error)
-      enqueueSnackbar('Error loading teaching style', { variant: 'error' })
+      enqueueSnackbar('Error loading Teaching Approach', { variant: 'error' })
     } finally {
       setFetching(false)
     }
@@ -102,17 +102,19 @@ export default function TeachingPhilosophyModal({ open, onClose, teacherId }) {
       )
 
       if (response.data.status === 1) {
-        enqueueSnackbar('Teaching Style updated successfully', {
+        enqueueSnackbar('Teaching Approach updated successfully', {
           variant: 'success',
         })
         onClose()
         window.location.reload()
       } else {
-        enqueueSnackbar('Failed to update teaching style', { variant: 'error' })
+        enqueueSnackbar('Failed to update Teaching Approach', {
+          variant: 'error',
+        })
       }
     } catch (error) {
       console.error(error)
-      enqueueSnackbar('Error updating teaching style', { variant: 'error' })
+      enqueueSnackbar('Error updating Teaching Approach', { variant: 'error' })
     } finally {
       setLoading(false)
     }
@@ -124,7 +126,7 @@ export default function TeachingPhilosophyModal({ open, onClose, teacherId }) {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="med" fullWidth>
-      <DialogTitle>Edit Teaching Style</DialogTitle>
+      <DialogTitle>Edit Teaching Approach</DialogTitle>
       <DialogContent>
         {fetching ? (
           <div style={{ textAlign: 'center', padding: '24px 0' }}>
@@ -142,7 +144,7 @@ export default function TeachingPhilosophyModal({ open, onClose, teacherId }) {
               style={{ display: 'block', marginBottom: 8 }}
             >
               Pick yours directly (these take priority), or leave empty to have
-              them inferred from your teaching style below.
+              them inferred from your Teaching Approach below.
             </Typography>
 
             <FormControl fullWidth variant="outlined" size="small">
@@ -213,12 +215,12 @@ export default function TeachingPhilosophyModal({ open, onClose, teacherId }) {
               </div>
             )}
 
-            {/* Teaching style / philosophy */}
+            {/* Teaching Approach / philosophy */}
             <TextField
               style={{ marginTop: 20 }}
               fullWidth
-              label="Teaching Style"
-              placeholder="Tell us how you prefer to teach and engage your students. This helps us create lesson plans that reflect your teaching style, preferences, and approach to learning. e.g., I prefer student-led discussions, collaborative activities, practical examples, and minimal lecturing."
+              label="Teaching Approach"
+              placeholder="What do you believe strongly as a teacher, what is your philosophy?"
               multiline
               rows={5}
               value={philosophy}

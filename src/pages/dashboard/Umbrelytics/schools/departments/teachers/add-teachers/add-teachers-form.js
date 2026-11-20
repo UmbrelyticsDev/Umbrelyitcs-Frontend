@@ -32,6 +32,7 @@ import {
 } from '@material-ui/core'
 import { Icon } from '@iconify/react'
 import fakeRequest from 'src/utils/fakeRequest'
+import QualificationsHoverSelect from 'src/components/QualificationsHoverSelect'
 import { UploadAvatar } from 'src/components/upload'
 import { fData } from 'src/utils/formatNumber'
 import copyFill from '@iconify/icons-eva/copy-fill'
@@ -94,13 +95,28 @@ const formikSig = (v = {}) =>
 const salarySig = (s = {}) =>
   JSON.stringify({
     classification: s.classification || '',
-    qualification: s.qualification || '',
+    qualifications: [...(s.qualifications || [])].sort(),
     posr: s.posr || '',
     grossMonthly: s.grossMonthly ?? '',
     pensionPercentage: s.pensionPercentage ?? '',
     payJTATax: !!s.payJTATax,
     employmentDate: s.employmentDate || '',
   })
+
+// Stored qualifications come back as a JSON array string (new multi-select) or,
+// for older rows, a single `qualification` label. Normalise either to an array.
+const parseQualifications = (raw, single) => {
+  if (Array.isArray(raw)) return raw.filter(Boolean)
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const arr = JSON.parse(raw)
+      if (Array.isArray(arr)) return arr.filter(Boolean)
+    } catch (e) {
+      /* not JSON — fall through to the single-label fallback */
+    }
+  }
+  return single && single !== 'None' ? [single] : []
+}
 
 const teachingSig = (t = {}) =>
   JSON.stringify({
@@ -148,7 +164,7 @@ export default function AddTeacherForm({
   const [salaryClassifications, setSalaryClassifications] = useState([])
   const [salaryProfile, setSalaryProfile] = useState({
     classification: '',
-    qualification: 'None',
+    qualifications: [],
     posr: 'NONE',
     grossMonthly: '',
     pensionPercentage: '',
@@ -160,7 +176,7 @@ export default function AddTeacherForm({
   const [salaryBaseline, setSalaryBaseline] = useState(() =>
     salarySig({
       classification: '',
-      qualification: 'None',
+      qualifications: [],
       posr: 'NONE',
       grossMonthly: '',
       pensionPercentage: '',
@@ -191,7 +207,10 @@ export default function AddTeacherForm({
           if (res.data.status === 1 && p) {
             const loaded = {
               classification: p.classification || '',
-              qualification: p.qualification || 'None',
+              qualifications: parseQualifications(
+                p.qualifications,
+                p.qualification,
+              ),
               posr: p.posr || 'NONE',
               grossMonthly:
                 p.gross_monthly != null ? String(p.gross_monthly) : '',
@@ -849,21 +868,16 @@ export default function AddTeacherForm({
                         </TextField>
                       </Grid>
                       <Grid item xs={12} sm={6}>
-                        <TextField
-                          select
-                          fullWidth
-                          label="Qualification"
-                          value={salaryProfile.qualification}
-                          onChange={onSalaryChange('qualification')}
-                        >
-                          {['None', 'Masters Degree', 'Doctoral Degree'].map(
-                            (q) => (
-                              <MenuItem key={q} value={q}>
-                                {q}
-                              </MenuItem>
-                            ),
-                          )}
-                        </TextField>
+                        <QualificationsHoverSelect
+                          value={salaryProfile.qualifications}
+                          onChange={(next) =>
+                            setSalaryProfile((prev) => ({
+                              ...prev,
+                              qualifications: next,
+                            }))
+                          }
+                          helperText="Masters or Doctoral adds the advanced-degree allowance"
+                        />
                       </Grid>
                       <Grid item xs={12} sm={6}>
                         <TextField

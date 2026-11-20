@@ -363,7 +363,7 @@ export default function DashboardTeacher() {
                         variant="body2"
                         sx={{ color: 'text.secondary', mb: 2 }}
                       >
-                        Currently inferred from your teaching style. Pick
+                        Currently inferred from your teaching approach. Pick
                         specific values to take control of how lessons are
                         aligned.
                       </Typography>
@@ -383,7 +383,7 @@ export default function DashboardTeacher() {
                         variant="body2"
                         sx={{ color: 'text.secondary', mb: 2 }}
                       >
-                        Set your teaching style once and every lesson plan
+                        Set your teaching approach once and every lesson plan
                         aligns to the core values behind how you teach.
                       </Typography>
                       <Box sx={{ mt: 'auto' }}>
@@ -392,7 +392,7 @@ export default function DashboardTeacher() {
                           size="small"
                           onClick={() => setPhilosophyOpen(true)}
                         >
-                          Add teaching style
+                          Add teaching approach
                         </Button>
                       </Box>
                     </>

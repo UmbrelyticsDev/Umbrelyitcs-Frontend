@@ -10,6 +10,13 @@ import {
   MenuItem,
   Stack,
   Alert,
+  Box,
+  Paper,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Checkbox,
 } from '@material-ui/core'
 import Autocomplete from '@material-ui/lab/Autocomplete'
 import { LoadingButton } from '@material-ui/lab'
@@ -22,6 +29,92 @@ import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
 
 const user = JSON.parse(localStorage.getItem('user') || '{}')
 const user_type = JSON.parse(localStorage.getItem('user_type'))
+
+const QUALIFICATION_OPTIONS = [
+  'Diploma',
+  "Bachelor's Degree",
+  'Masters Degree',
+  'Doctoral Degree',
+]
+
+// Hover-reveal qualifications picker. The field shows the current selection;
+// hovering it drops a tickable list of degrees that hides the instant the
+// pointer leaves the field + list area (both live inside the same wrapper, so
+// moving from the field onto the list keeps it open). It also opens on keyboard
+// focus and closes on blur, so it's still usable without a mouse.
+function QualificationsHoverSelect({ value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const selected = Array.isArray(value) ? value : []
+
+  const toggle = (q) =>
+    onChange(
+      selected.includes(q)
+        ? selected.filter((x) => x !== q)
+        : [...selected, q],
+    )
+
+  return (
+    <Box
+      sx={{ position: 'relative' }}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onBlur={(e) => {
+        // Close only when focus leaves the whole widget (keyboard users).
+        if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false)
+      }}
+    >
+      {/* Inner wrapper is only as tall as the input, so the list anchors
+          directly under it (top: 100%) regardless of the field's height. */}
+      <Box sx={{ position: 'relative' }}>
+        <TextField
+          fullWidth
+          label="Qualifications"
+          placeholder="Hover to select your degrees"
+          value={selected.length ? selected.join(', ') : ''}
+          onFocus={() => setOpen(true)}
+          InputProps={{ readOnly: true }}
+          InputLabelProps={{ shrink: true }}
+        />
+        {open && (
+          <Paper
+            elevation={8}
+            sx={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              right: 0,
+              mt: 0.5,
+              zIndex: 30,
+            }}
+          >
+            <List dense disablePadding>
+              {QUALIFICATION_OPTIONS.map((q) => (
+                <ListItem button key={q} onClick={() => toggle(q)}>
+                  <ListItemIcon sx={{ minWidth: 36 }}>
+                    <Checkbox
+                      edge="start"
+                      color="primary"
+                      checked={selected.includes(q)}
+                      tabIndex={-1}
+                      disableRipple
+                    />
+                  </ListItemIcon>
+                  <ListItemText primary={q} />
+                </ListItem>
+              ))}
+            </List>
+          </Paper>
+        )}
+      </Box>
+      <Typography
+        variant="caption"
+        sx={{ color: 'text.secondary', display: 'block', mt: 0.5, ml: 1.75 }}
+      >
+        Hover the field and tick all that apply
+      </Typography>
+    </Box>
+  )
+}
 
 export default function Onboarding() {
   const [form, setForm] = useState({
@@ -225,25 +318,12 @@ export default function Onboarding() {
                 </TextField>
               </Grid>
               <Grid item xs={12} sm={6}>
-                <TextField
-                  select
-                  fullWidth
-                  label="Qualifications"
+                <QualificationsHoverSelect
                   value={form.qualifications}
-                  onChange={set('qualifications')}
-                  SelectProps={{
-                    multiple: true,
-                    renderValue: (sel) =>
-                      Array.isArray(sel) && sel.length ? sel.join(', ') : 'None',
-                  }}
-                  helperText="Select all that apply"
-                >
-                  {['Diploma', "Bachelor's Degree", 'Masters Degree', 'Doctoral Degree'].map((q) => (
-                    <MenuItem key={q} value={q}>
-                      {q}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                  onChange={(next) =>
+                    setForm((f) => ({ ...f, qualifications: next }))
+                  }
+                />
               </Grid>
               <Grid item xs={12} sm={6}>
                 <TextField
