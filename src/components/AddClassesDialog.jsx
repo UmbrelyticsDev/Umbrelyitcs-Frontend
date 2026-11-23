@@ -23,6 +23,7 @@ import { useSnackbar } from 'notistack'
 import Autocomplete from '@material-ui/lab/Autocomplete'
 import toolAxios from 'src/_apis_/toolAxios'
 import useTeacherClassOptions from 'src/hooks/useTeacherClassOptions'
+import { to12h } from 'src/utils/time'
 
 // Shared "Add Classes" dialog — create one or more classes and place all of
 // their weekly sessions in one action. Used by both the timetable page and the
@@ -76,6 +77,8 @@ const fmtTime = (mins) =>
   `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(
     mins % 60,
   ).padStart(2, '0')}`
+// Display-only wrapper (12-hour am/pm); payloads/state stay 24-hour via fmtTime.
+const fmtTimeDisplay = (mins) => to12h(fmtTime(mins))
 const multiplierFor = (t) => (t === 'double' ? 2 : t === 'triple' ? 3 : 1)
 
 // Quick-added classes start unconfirmed; the chip clears once reviewed via Edit.
@@ -288,7 +291,7 @@ export default function AddClassesDialog({
       if (hitExisting) {
         clashErrors[`${ns.i}:${ns.si}`] = `clashes with ${
           hitExisting.name || 'an existing class'
-        } already on ${ns.day} ${fmtTime(hitExisting.startMin)}–${fmtTime(
+        } already on ${ns.day} ${fmtTimeDisplay(hitExisting.startMin)}–${fmtTimeDisplay(
           hitExisting.endMin,
         )}`
         return
@@ -302,7 +305,7 @@ export default function AddClassesDialog({
       if (hitBatch) {
         clashErrors[`${ns.i}:${ns.si}`] = `overlaps ${
           hitBatch.label || 'another class'
-        } you're adding on ${ns.day} ${fmtTime(hitBatch.startMin)}–${fmtTime(
+        } you're adding on ${ns.day} ${fmtTimeDisplay(hitBatch.startMin)}–${fmtTimeDisplay(
           hitBatch.endMin,
         )}`
       }
@@ -358,7 +361,7 @@ export default function AddClassesDialog({
           session_type: firstType === 'custom' ? 'double' : firstType,
           academic_year: new Date().getFullYear(),
           term: 'Term 1',
-          class_time: '9:00 AM',
+          class_time: '09:00:00',
         })
         const classId = createRes.data?.data?.id
         if (!classId) throw new Error('class could not be created')
@@ -677,7 +680,7 @@ export default function AddClassesDialog({
                               size="small"
                               label="End"
                               InputLabelProps={{ shrink: true }}
-                              value={sessionEndTime(row, session)}
+                              value={to12h(sessionEndTime(row, session))}
                               disabled
                             />
                           )}

@@ -283,26 +283,29 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
 
       <Box sx={{ flexGrow: 1 }} />
 
-      <Box sx={{ px: 2.5, pb: 3 }}>
-        <Button
-          fullWidth
-          onClick={handleLogout}
-          startIcon={<Icon icon={logOutFill} />}
-          sx={{
-            justifyContent: 'flex-start',
-            color: 'error.main',
-            fontWeight: 500,
-            px: 1.5,
-            py: 1.25,
-            borderRadius: 1,
-            '&:hover': {
-              bgcolor: 'error.lighter',
-            },
-          }}
-        >
-          Logout
-        </Button>
-      </Box>
+      {/* Logout temporarily hidden (kept for easy re-enable — flip false → true). */}
+      {false && (
+        <Box sx={{ px: 2.5, pb: 3 }}>
+          <Button
+            fullWidth
+            onClick={handleLogout}
+            startIcon={<Icon icon={logOutFill} />}
+            sx={{
+              justifyContent: 'flex-start',
+              color: 'error.main',
+              fontWeight: 500,
+              px: 1.5,
+              py: 1.25,
+              borderRadius: 1,
+              '&:hover': {
+                bgcolor: 'error.lighter',
+              },
+            }}
+          >
+            Logout
+          </Button>
+        </Box>
+      )}
     </Scrollbar>
   )
 

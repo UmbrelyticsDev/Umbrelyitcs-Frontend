@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <title>Signing out…</title>
+  </head>
+  <body>
+    <script>
+      // Cross-origin logout helper.
+      //
+      // The lesson-planner tool loads this page in a HIDDEN IFRAME during its
+      // logout. Because this file is served from the WEBSITE's origin, the
+      // script below runs as the website and can clear the website's own
+      // localStorage session — something the tool (a different origin) cannot
+      // do directly. These are the same keys the website's own logout clears.
+      try {
+        ['accessToken', 'user_id', 'user_type', 'user'].forEach(function (k) {
+          localStorage.removeItem(k);
+        });
+      } catch (e) {
+        /* private mode / storage blocked — nothing to clear */
+      }
+    </script>
+  </body>
+</html>

@@ -32,6 +32,7 @@ import Page from '../../../../components/Page'
 import toolAxios from 'src/_apis_/toolAxios'
 import { useSearchParams } from 'react-router-dom'
 import TimetableImportModal from './TimetableImportModal'
+import { to12h } from 'src/utils/time'
 import AddClassesDialog from 'src/components/AddClassesDialog'
 import Autocomplete from '@material-ui/lab/Autocomplete'
 import useTeacherClassOptions from 'src/hooks/useTeacherClassOptions'
@@ -73,7 +74,7 @@ const EMPTY_CLASS = {
   session_type: 'double',
   academic_year: new Date().getFullYear(),
   term: 'Term 1',
-  class_time: '9:00 AM',
+  class_time: '09:00:00',
 }
 
 // Per-class colour palette — must match CLASS_COLOR_PALETTE in the tool
@@ -119,7 +120,11 @@ const fmtTime = (mins) =>
   `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(
     mins % 60,
   ).padStart(2, '0')}`
-const fmtHour = (h) => `${String(h).padStart(2, '0')}:00`
+// Display-only wrapper: same value as fmtTime but 12-hour am/pm. Never use for
+// payloads/state (those stay 24-hour via fmtTime).
+const fmtTimeDisplay = (mins) => to12h(fmtTime(mins))
+// Hour-ruler label in 12-hour am/pm form.
+const fmtHour = (h) => to12h(`${String(h).padStart(2, '0')}:00`)
 const multiplierFor = (t) => (t === 'double' ? 2 : t === 'triple' ? 3 : 1)
 
 export default function TeacherTimetable() {
@@ -484,7 +489,7 @@ export default function TeacherTimetable() {
       session_type: cls.session_type || 'double',
       academic_year: cls.academic_year || new Date().getFullYear(),
       term: cls.term || 'Term 1',
-      class_time: cls.class_time || '9:00 AM',
+      class_time: cls.class_time || '09:00:00',
     })
     setSessionEdits(sessionsForClass(cls.id))
   }
@@ -966,7 +971,7 @@ export default function TeacherTimetable() {
                                 top: (slot.start - rangeStartMin) * PX_PER_MIN,
                                 height: (slot.end - slot.start) * PX_PER_MIN,
                               }}
-                              title={`Add a class on ${day} at ${fmtTime(
+                              title={`Add a class on ${day} at ${fmtTimeDisplay(
                                 slot.start,
                               )}`}
                             >
@@ -1067,8 +1072,7 @@ export default function TeacherTimetable() {
                               variant="caption"
                               sx={{ color: 'text.secondary', lineHeight: 1.2 }}
                             >
-                              {trimTime(entry.start_time)}–
-                              {trimTime(entry.end_time)}
+                              {to12h(entry.start_time)}–{to12h(entry.end_time)}
                             </Typography>
                             {showMeta && entry.room && (
                               <Typography
@@ -1199,8 +1203,8 @@ export default function TeacherTimetable() {
             {drag.entry.class_name}
           </Typography>
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-            {fmtTime(drag.previewStartMin)}–
-            {fmtTime(drag.previewStartMin + drag.durationMin)}
+            {fmtTimeDisplay(drag.previewStartMin)}–
+            {fmtTimeDisplay(drag.previewStartMin + drag.durationMin)}
           </Typography>
         </Box>
       )}
@@ -1639,7 +1643,7 @@ export default function TeacherTimetable() {
                               {s.session_type !== 'custom' &&
                               s.start_time &&
                               s.length
-                                ? `→ ${fmtTime(
+                                ? `→ ${fmtTimeDisplay(
                                     toMinutes(s.start_time) +
                                       multiplierFor(s.session_type) *
                                         (parseInt(s.length, 10) || 0),

@@ -226,6 +226,9 @@ export default function TeachingPhilosophyModal({ open, onClose, teacherId }) {
               value={philosophy}
               inputProps={{ maxLength: 5000 }}
               onChange={(e) => setPhilosophy(e.target.value)}
+              // Italicise only the suggestive placeholder text, not what the
+              // teacher types.
+              sx={{ '& ::placeholder': { fontStyle: 'italic', opacity: 0.8 } }}
             />
           </div>
         )}

@@ -1,3 +1,4 @@
+// MARKER_TEST_12345
 import { useState, useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import {
@@ -20,6 +21,14 @@ import {
 } from '@material-ui/core'
 import Autocomplete from '@material-ui/lab/Autocomplete'
 import { LoadingButton } from '@material-ui/lab'
+
+// Jamaica's 14 parishes — type-ahead suggestions for the location field.
+// freeSolo still allows a specific town/city to be typed.
+const JAMAICA_PARISHES = [
+  'Kingston', 'St. Andrew', 'St. Thomas', 'Portland', 'St. Mary', 'St. Ann',
+  'Trelawny', 'St. James', 'Hanover', 'Westmoreland', 'St. Elizabeth',
+  'Manchester', 'Clarendon', 'St. Catherine',
+]
 import Page from '../../../../components/Page'
 import axios from 'axios'
 import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
@@ -239,11 +248,20 @@ export default function Onboarding() {
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Location (city / parish)"
-                  value={form.location}
-                  onChange={set('location')}
+                <Autocomplete
+                  freeSolo
+                  options={JAMAICA_PARISHES}
+                  inputValue={form.location}
+                  onInputChange={(e, v) =>
+                    setForm((f) => ({ ...f, location: v }))
+                  }
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      fullWidth
+                      label="Location (city / parish)"
+                    />
+                  )}
                 />
               </Grid>
               <Grid item xs={12}>

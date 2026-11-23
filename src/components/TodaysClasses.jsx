@@ -11,6 +11,7 @@ import { AccessTime as TimeIcon, Room as RoomIcon } from '@material-ui/icons'
 import { useNavigate } from 'react-router-dom'
 import { PATH_DASHBOARD } from 'src/routes/paths'
 import toolAxios from 'src/_apis_/toolAxios'
+import { to12h } from 'src/utils/time'
 
 // Dashboard section: the teacher's classes scheduled for today, pulled from the
 // timetable. Self-contained — drop <TodaysClasses /> into the dashboard page.
@@ -24,7 +25,8 @@ const DAY_NAMES = [
   'Saturday',
 ]
 
-const trimTime = (t) => (t ? String(t).slice(0, 5) : '')
+// Display the stored 24-hour time in 12-hour am/pm form.
+const trimTime = (t) => to12h(t)
 
 export default function TodaysClasses() {
   const [entries, setEntries] = useState([])
