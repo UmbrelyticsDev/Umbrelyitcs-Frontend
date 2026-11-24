@@ -205,7 +205,7 @@ export default function DashboardTeacher() {
           },
         }
       : null,
-    coreValues.length === 0
+    coreValues.length === 0 && !hasPhilosophy
       ? {
           key: 'approach',
           icon: '⭐',
