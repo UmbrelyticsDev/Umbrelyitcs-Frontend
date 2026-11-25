@@ -6,7 +6,6 @@ import { experimentalStyled as styled } from '@material-ui/core/styles'
 import DashboardNavbar from './DashboardNavbar'
 import DashboardSidebar from './DashboardSidebar'
 import FloatingNotebook from 'src/components/FloatingNotebook' // adjust path to where you saved it
-import HelpWidget from 'src/components/HelpWidget'
 
 // ----------------------------------------------------------------------
 
@@ -48,7 +47,6 @@ export default function DashboardLayout() {
         <Outlet />
       </MainStyle>
       <FloatingNotebook />
-      <HelpWidget />
     </RootStyle>
   )
 }

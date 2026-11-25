@@ -25,6 +25,8 @@ import Scrollbar from '../../components/Scrollbar'
 import NavSection from '../../components/NavSection'
 import { MHidden } from '../../components/@material-extend'
 import TeachingPhilosophyModal from '../../components/TeachingPhilosophyModal'
+import HelpWidget from '../../components/HelpWidget'
+import HelpOutlineIcon from '@material-ui/icons/HelpOutline'
 import SvgIconStyle from '../../components/SvgIconStyle'
 //
 import sidebarConfig from './SidebarConfig'
@@ -89,6 +91,7 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
   const [teacherData, setTeacherData] = useState([])
   const [hodData, setHodData] = useState([])
   const [philosophyModalOpen, setPhilosophyModalOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
   const [hasClasses, setHasClasses] = useState(false)
   const [classesLoaded, setClassesLoaded] = useState(false)
   const navigate = useNavigate()
@@ -283,6 +286,17 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
 
       <Box sx={{ flexGrow: 1 }} />
 
+      {/* Help — opens the support modal */}
+      <ListItemStyle
+        onClick={() => setHelpOpen(true)}
+        sx={{ cursor: 'pointer' }}
+      >
+        <ListItemIconStyle>
+          <HelpOutlineIcon />
+        </ListItemIconStyle>
+        <ListItemText disableTypography primary="Help" />
+      </ListItemStyle>
+
       {/* Logout temporarily hidden (kept for easy re-enable — flip false → true). */}
       {false && (
         <Box sx={{ px: 2.5, pb: 3 }}>
@@ -342,6 +356,8 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
         teacherId={user?.teacherId}
         currentPhilosophy={teacherData?.teaching_philosophy}
       />
+
+      <HelpWidget open={helpOpen} onClose={() => setHelpOpen(false)} />
     </RootStyle>
   )
 }
