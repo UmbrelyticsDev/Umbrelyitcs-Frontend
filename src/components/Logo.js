@@ -1,20 +1,20 @@
-import PropTypes from 'prop-types';
+import PropTypes from 'prop-types'
 // material
-import { useTheme } from '@material-ui/core/styles';
-import { Box } from '@material-ui/core';
-import Logo1 from '../../src/components/Logo/apple-touch-icon.png'
+import { useTheme } from '@material-ui/core/styles'
+import { Box } from '@material-ui/core'
+import Logo1 from '../../src/components/Logo/1android-chrome-512x512.png'
 
 // ----------------------------------------------------------------------
 
 Logo.propTypes = {
-  sx: PropTypes.object
-};
+  sx: PropTypes.object,
+}
 
 export default function Logo({ sx }) {
-  const theme = useTheme();
-  const PRIMARY_LIGHT = theme.palette.primary.light;
-  const PRIMARY_MAIN = theme.palette.primary.main;
-  const PRIMARY_DARK = theme.palette.primary.dark;
+  const theme = useTheme()
+  const PRIMARY_LIGHT = theme.palette.primary.light
+  const PRIMARY_MAIN = theme.palette.primary.main
+  const PRIMARY_DARK = theme.palette.primary.dark
 
   return (
     <Box>
@@ -48,7 +48,11 @@ export default function Logo({ sx }) {
           />
         </g>
       </svg> */}
-      <img src={Logo1} alt='Logo' style={{width:180,height:140,objectFit:'contain'}}/>
+      <img
+        src={Logo1}
+        alt="Logo"
+        style={{ width: 180, height: 140, objectFit: 'contain' }}
+      />
     </Box>
-  );
+  )
 }

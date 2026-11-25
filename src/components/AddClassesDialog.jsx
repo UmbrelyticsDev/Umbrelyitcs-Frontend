@@ -92,11 +92,14 @@ export default function AddClassesDialog({
   classes = [],
   onEditClass,
   onDeleteClass,
+  editingClass = null,
+  editFormContent = null,
 }) {
   const { enqueueSnackbar } = useSnackbar()
   // Subjects/grades the teacher entered at onboarding, offered as options, plus
   // their default "Timetable Period" (session length), applied to every class.
-  const { subjectOptions, gradeOptions, sessionPeriod } = useTeacherClassOptions()
+  const { subjectOptions, gradeOptions, sessionPeriod } =
+    useTeacherClassOptions()
 
   // A blank row — pre-filled with the teacher's subject/grade when they
   // registered exactly one, and the class length set from their Timetable
@@ -137,7 +140,8 @@ export default function AddClassesDialog({
               ...r,
               subject: r.subject || onlySubject,
               grade_level: r.grade_level || onlyGrade,
-              standard_session_length: sessionPeriod || r.standard_session_length,
+              standard_session_length:
+                sessionPeriod || r.standard_session_length,
             },
       ),
     )
@@ -291,9 +295,9 @@ export default function AddClassesDialog({
       if (hitExisting) {
         clashErrors[`${ns.i}:${ns.si}`] = `clashes with ${
           hitExisting.name || 'an existing class'
-        } already on ${ns.day} ${fmtTimeDisplay(hitExisting.startMin)}–${fmtTimeDisplay(
-          hitExisting.endMin,
-        )}`
+        } already on ${ns.day} ${fmtTimeDisplay(
+          hitExisting.startMin,
+        )}–${fmtTimeDisplay(hitExisting.endMin)}`
         return
       }
       const hitBatch = newSessions.find(
@@ -305,9 +309,9 @@ export default function AddClassesDialog({
       if (hitBatch) {
         clashErrors[`${ns.i}:${ns.si}`] = `overlaps ${
           hitBatch.label || 'another class'
-        } you're adding on ${ns.day} ${fmtTimeDisplay(hitBatch.startMin)}–${fmtTimeDisplay(
-          hitBatch.endMin,
-        )}`
+        } you're adding on ${ns.day} ${fmtTimeDisplay(
+          hitBatch.startMin,
+        )}–${fmtTimeDisplay(hitBatch.endMin)}`
       }
     })
 
@@ -421,442 +425,473 @@ export default function AddClassesDialog({
           justifyContent="space-between"
           alignItems="center"
         >
-          Add Classes
+          {editingClass ? 'Edit Class' : 'Add Classes'}
           <IconButton onClick={onClose}>
             <CloseIcon />
           </IconButton>
         </Stack>
       </DialogTitle>
       <DialogContent dividers>
-        <Box sx={{ mb: showExisting ? 3 : 0 }}>
-          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
-            Create one or more classes and place all of their weekly sessions at
-            once. Use “+ Add session” for a class that meets more than once a
-            week.
-          </Typography>
-          <Typography
-            variant="caption"
-            sx={{ color: 'text.secondary', mb: 2, display: 'block' }}
-          >
-            Fill in each class’s details (including proficiency and class size),
-            then set each session’s day, time and room below.
-          </Typography>
-
-          <Stack spacing={2}>
-            {classRows.map((row, i) => (
-              <Paper
-                key={i}
-                variant="outlined"
-                sx={{ p: 2, bgcolor: 'grey.50' }}
-              >
-                <Stack
-                  direction="row"
-                  justifyContent="space-between"
-                  alignItems="center"
-                  sx={{ mb: 1 }}
-                >
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      fontWeight: 600,
-                      color: 'text.secondary',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    Class {i + 1}
-                  </Typography>
-                  {classRows.length > 1 && (
-                    <Button
-                      size="small"
-                      color="error"
-                      onClick={() => removeRow(i)}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </Stack>
-
-                {row.created_id && (
-                  <Typography
-                    variant="caption"
-                    sx={{ color: 'warning.main', display: 'block', mb: 1 }}
-                  >
-                    Class created — fix the conflicting session(s) below and
-                    click “Create &amp; Schedule” again.
-                  </Typography>
-                )}
-
-                <Grid container spacing={1.5}>
-                  <Grid item xs={12} sm={4}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Class name"
-                      value={row.class_name}
-                      disabled={!!row.created_id}
-                      onChange={(e) =>
-                        updateRow(i, 'class_name', e.target.value)
-                      }
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <Autocomplete
-                      freeSolo
-                      size="small"
-                      options={subjectOptions}
-                      inputValue={row.subject}
-                      disabled={!!row.created_id}
-                      onInputChange={(e, v) => updateRow(i, 'subject', v)}
-                      renderInput={(params) => (
-                        <TextField {...params} fullWidth label="Subject" />
-                      )}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <Autocomplete
-                      freeSolo
-                      size="small"
-                      options={gradeOptions}
-                      inputValue={row.grade_level}
-                      disabled={!!row.created_id}
-                      onInputChange={(e, v) => updateRow(i, 'grade_level', v)}
-                      renderInput={(params) => (
-                        <TextField {...params} fullWidth label="Grade" />
-                      )}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField
-                      select
-                      fullWidth
-                      size="small"
-                      label="Examination body"
-                      value={row.examination_body || ''}
-                      disabled={!!row.created_id}
-                      onChange={(e) =>
-                        updateRow(i, 'examination_body', e.target.value)
-                      }
-                    >
-                      <MenuItem value="">None</MenuItem>
-                      {EXAMINATION_BODIES.map((b) => (
-                        <MenuItem key={b} value={b}>
-                          {b}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  </Grid>
-                  <Grid item xs={12} sm={8}>
-                    <TextField
-                      fullWidth
-                      required
-                      size="small"
-                      label="Proficiency of Students"
-                      placeholder="e.g. mixed levels, mostly beginners, advanced"
-                      value={row.proficiency}
-                      disabled={!!row.created_id}
-                      onChange={(e) =>
-                        updateRow(i, 'proficiency', e.target.value)
-                      }
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField
-                      fullWidth
-                      required
-                      size="small"
-                      type="number"
-                      label="Class size"
-                      value={row.student_count}
-                      disabled={!!row.created_id}
-                      onChange={(e) =>
-                        updateRow(
-                          i,
-                          'student_count',
-                          e.target.value === ''
-                            ? ''
-                            : parseInt(e.target.value, 10),
-                        )
-                      }
-                      inputProps={{ min: 1, max: 200 }}
-                    />
-                  </Grid>
-                </Grid>
-
-                {/* Class length is the teacher's Timetable Period default
-                    (set at onboarding / profile), so it's no longer asked here. */}
-
-                {/* Sessions — one or more per week for this class */}
-                <Typography
-                  variant="caption"
-                  sx={{
-                    display: 'block',
-                    fontWeight: 600,
-                    color: 'text.secondary',
-                    textTransform: 'uppercase',
-                    mt: 2,
-                    mb: 0.5,
-                  }}
-                >
-                  Sessions
-                </Typography>
-                <Stack spacing={1.5}>
-                  {row.sessions.map((session, si) => (
-                    <Box key={si}>
-                      <Grid container spacing={1} alignItems="center">
-                        <Grid item xs={6} sm={2}>
-                          <TextField
-                            select
-                            fullWidth
-                            size="small"
-                            label="Day"
-                            value={session.day_of_week}
-                            onChange={(e) =>
-                              updateSession(
-                                i,
-                                si,
-                                'day_of_week',
-                                e.target.value,
-                              )
-                            }
-                          >
-                            {DAYS.map((day) => (
-                              <MenuItem key={day} value={day}>
-                                {day}
-                              </MenuItem>
-                            ))}
-                          </TextField>
-                        </Grid>
-                        <Grid item xs={6} sm={2}>
-                          <TextField
-                            fullWidth
-                            size="small"
-                            type="time"
-                            label="Start"
-                            InputLabelProps={{ shrink: true }}
-                            value={session.start_time}
-                            onChange={(e) =>
-                              updateSession(i, si, 'start_time', e.target.value)
-                            }
-                          />
-                        </Grid>
-                        <Grid item xs={6} sm={2}>
-                          <TextField
-                            select
-                            fullWidth
-                            size="small"
-                            label="Duration"
-                            value={session.session_type}
-                            onChange={(e) =>
-                              updateSession(
-                                i,
-                                si,
-                                'session_type',
-                                e.target.value,
-                              )
-                            }
-                          >
-                            <MenuItem value="single">Single</MenuItem>
-                            <MenuItem value="double">Double</MenuItem>
-                            <MenuItem value="triple">Triple</MenuItem>
-                            <MenuItem value="custom">Custom</MenuItem>
-                          </TextField>
-                        </Grid>
-                        <Grid item xs={6} sm={2}>
-                          {session.session_type === 'custom' ? (
-                            <TextField
-                              fullWidth
-                              size="small"
-                              type="time"
-                              label="End"
-                              InputLabelProps={{ shrink: true }}
-                              value={session.end_time}
-                              onChange={(e) =>
-                                updateSession(i, si, 'end_time', e.target.value)
-                              }
-                            />
-                          ) : (
-                            <TextField
-                              fullWidth
-                              size="small"
-                              label="End"
-                              InputLabelProps={{ shrink: true }}
-                              value={to12h(sessionEndTime(row, session))}
-                              disabled
-                            />
-                          )}
-                        </Grid>
-                        <Grid item xs={10} sm={3}>
-                          <TextField
-                            fullWidth
-                            size="small"
-                            label="Room"
-                            placeholder="e.g., 2D"
-                            value={session.room}
-                            onChange={(e) =>
-                              updateSession(i, si, 'room', e.target.value)
-                            }
-                          />
-                        </Grid>
-                        <Grid item xs={2} sm={1} sx={{ textAlign: 'center' }}>
-                          {row.sessions.length > 1 && (
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => removeSession(i, si)}
-                              title="Remove session"
-                              aria-label="Remove session"
-                            >
-                              <CloseIcon fontSize="small" />
-                            </IconButton>
-                          )}
-                        </Grid>
-                      </Grid>
-                      {session.error && (
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            color: 'error.main',
-                            display: 'block',
-                            pl: 1,
-                            mt: 0.25,
-                          }}
-                        >
-                          ⚠ {session.error}
-                        </Typography>
-                      )}
-                    </Box>
-                  ))}
-                </Stack>
-
-                <Button
-                  size="small"
-                  onClick={() => addSession(i)}
-                  sx={{ mt: 1 }}
-                >
-                  + Add session
-                </Button>
-              </Paper>
-            ))}
-          </Stack>
-
-          <Button size="small" onClick={addRow} sx={{ mt: 1.5 }}>
-            + Add another class
-          </Button>
-
-          {rowsResult && (
-            <Box sx={{ mt: 1.5 }}>
-              {rowsResult.map((r, i) => (
-                <Typography
-                  key={i}
-                  variant="caption"
-                  sx={{
-                    display: 'block',
-                    color:
-                      r.status === 'ok'
-                        ? 'success.main'
-                        : r.status === 'class_only' || r.status === 'partial'
-                        ? 'warning.main'
-                        : 'error.main',
-                  }}
-                >
-                  {r.status === 'ok'
-                    ? `✓ ${r.label} created with ${r.count} session${
-                        r.count === 1 ? '' : 's'
-                      }`
-                    : r.status === 'blocked'
-                    ? `⚠ ${r.msg}`
-                    : r.status === 'partial'
-                    ? `⚠ ${r.label} — ${r.count}/${r.total} sessions placed (${r.msg})`
-                    : r.status === 'class_only'
-                    ? `⚠ ${r.label} — ${r.msg}`
-                    : `✕ ${r.label} — ${r.msg}`}
-                </Typography>
-              ))}
-            </Box>
-          )}
-
-          <Stack
-            direction="row"
-            spacing={1.5}
-            justifyContent="flex-end"
-            sx={{ mt: 2 }}
-          >
-            <Button
-              variant="contained"
-              sx={{ color: '#fff' }}
-              onClick={createAndScheduleRows}
-              disabled={creatingRows || validRowCount === 0}
-            >
-              {creatingRows
-                ? 'Creating...'
-                : `Save${validRowCount ? ` ${validRowCount}` : ''}`}
-            </Button>
-          </Stack>
-        </Box>
-
-        {showExisting && (
+        {editingClass ? (
+          editFormContent
+        ) : (
           <>
-            <Divider sx={{ mb: 2 }} />
-            <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
-              Your Classes
-            </Typography>
-            {classes.length === 0 ? (
+            <Box sx={{ mb: showExisting ? 3 : 0 }}>
               <Typography
                 variant="body2"
-                sx={{ color: 'text.disabled', fontStyle: 'italic' }}
+                sx={{ color: 'text.secondary', mb: 0.5 }}
               >
-                No classes yet. Create your first class above.
+                Create one or more classes and place all of their weekly
+                sessions at once. Use “+ Add session” for a class that meets
+                more than once a week.
               </Typography>
-            ) : (
-              <Stack spacing={1}>
-                {classes.map((cls) => (
+              <Typography
+                variant="caption"
+                sx={{ color: 'text.secondary', mb: 2, display: 'block' }}
+              >
+                Fill in each class’s details (including proficiency and class
+                size), then set each session’s day, time and room below.
+              </Typography>
+
+              <Stack spacing={2}>
+                {classRows.map((row, i) => (
                   <Paper
-                    key={cls.id}
+                    key={i}
                     variant="outlined"
-                    sx={{
-                      p: 1.5,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
+                    sx={{ p: 2, bgcolor: 'grey.50' }}
                   >
-                    <Box>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Typography variant="subtitle2">
-                          {cls.class_name}
-                        </Typography>
-                      </Stack>
+                    <Stack
+                      direction="row"
+                      justifyContent="space-between"
+                      alignItems="center"
+                      sx={{ mb: 1 }}
+                    >
                       <Typography
                         variant="caption"
-                        sx={{ color: 'text.secondary' }}
+                        sx={{
+                          fontWeight: 600,
+                          color: 'text.secondary',
+                          textTransform: 'uppercase',
+                        }}
                       >
-                        {cls.subject} • {cls.grade_level} • {cls.student_count}{' '}
-                        students
+                        Class {i + 1}
                       </Typography>
-                    </Box>
-                    <Stack direction="row" spacing={0.5}>
-                      {onEditClass && (
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          onClick={() => onEditClass(cls)}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      )}
-                      {onDeleteClass && (
-                        <IconButton
+                      {classRows.length > 1 && (
+                        <Button
                           size="small"
                           color="error"
-                          onClick={() => onDeleteClass(cls.id)}
+                          onClick={() => removeRow(i)}
                         >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
+                          Remove
+                        </Button>
                       )}
                     </Stack>
+
+                    {row.created_id && (
+                      <Typography
+                        variant="caption"
+                        sx={{ color: 'warning.main', display: 'block', mb: 1 }}
+                      >
+                        Class created — fix the conflicting session(s) below and
+                        click “Create &amp; Schedule” again.
+                      </Typography>
+                    )}
+
+                    <Grid container spacing={1.5}>
+                      <Grid item xs={12} sm={4}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Class name"
+                          value={row.class_name}
+                          disabled={!!row.created_id}
+                          onChange={(e) =>
+                            updateRow(i, 'class_name', e.target.value)
+                          }
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <Autocomplete
+                          freeSolo
+                          size="small"
+                          options={subjectOptions}
+                          inputValue={row.subject}
+                          disabled={!!row.created_id}
+                          onInputChange={(e, v) => updateRow(i, 'subject', v)}
+                          renderInput={(params) => (
+                            <TextField {...params} fullWidth label="Subject" />
+                          )}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <Autocomplete
+                          freeSolo
+                          size="small"
+                          options={gradeOptions}
+                          inputValue={row.grade_level}
+                          disabled={!!row.created_id}
+                          onInputChange={(e, v) =>
+                            updateRow(i, 'grade_level', v)
+                          }
+                          renderInput={(params) => (
+                            <TextField {...params} fullWidth label="Grade" />
+                          )}
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <TextField
+                          select
+                          fullWidth
+                          size="small"
+                          label="Examination body"
+                          value={row.examination_body || ''}
+                          disabled={!!row.created_id}
+                          onChange={(e) =>
+                            updateRow(i, 'examination_body', e.target.value)
+                          }
+                        >
+                          <MenuItem value="">None</MenuItem>
+                          {EXAMINATION_BODIES.map((b) => (
+                            <MenuItem key={b} value={b}>
+                              {b}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      </Grid>
+                      <Grid item xs={12} sm={8}>
+                        <TextField
+                          fullWidth
+                          required
+                          size="small"
+                          label="Proficiency of Students"
+                          placeholder="e.g. mixed levels, mostly beginners, advanced"
+                          value={row.proficiency}
+                          disabled={!!row.created_id}
+                          onChange={(e) =>
+                            updateRow(i, 'proficiency', e.target.value)
+                          }
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <TextField
+                          fullWidth
+                          required
+                          size="small"
+                          type="number"
+                          label="Class size"
+                          value={row.student_count}
+                          disabled={!!row.created_id}
+                          onChange={(e) =>
+                            updateRow(
+                              i,
+                              'student_count',
+                              e.target.value === ''
+                                ? ''
+                                : parseInt(e.target.value, 10),
+                            )
+                          }
+                          inputProps={{ min: 1, max: 200 }}
+                        />
+                      </Grid>
+                    </Grid>
+
+                    {/* Class length is the teacher's Timetable Period default
+                    (set at onboarding / profile), so it's no longer asked here. */}
+
+                    {/* Sessions — one or more per week for this class */}
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        display: 'block',
+                        fontWeight: 600,
+                        color: 'text.secondary',
+                        textTransform: 'uppercase',
+                        mt: 2,
+                        mb: 0.5,
+                      }}
+                    >
+                      Sessions
+                    </Typography>
+                    <Stack spacing={1.5}>
+                      {row.sessions.map((session, si) => (
+                        <Box key={si}>
+                          <Grid container spacing={1} alignItems="center">
+                            <Grid item xs={6} sm={2}>
+                              <TextField
+                                select
+                                fullWidth
+                                size="small"
+                                label="Day"
+                                value={session.day_of_week}
+                                onChange={(e) =>
+                                  updateSession(
+                                    i,
+                                    si,
+                                    'day_of_week',
+                                    e.target.value,
+                                  )
+                                }
+                              >
+                                {DAYS.map((day) => (
+                                  <MenuItem key={day} value={day}>
+                                    {day}
+                                  </MenuItem>
+                                ))}
+                              </TextField>
+                            </Grid>
+                            <Grid item xs={6} sm={2}>
+                              <TextField
+                                fullWidth
+                                size="small"
+                                type="time"
+                                label="Start"
+                                InputLabelProps={{ shrink: true }}
+                                value={session.start_time}
+                                onChange={(e) =>
+                                  updateSession(
+                                    i,
+                                    si,
+                                    'start_time',
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </Grid>
+                            <Grid item xs={6} sm={2}>
+                              <TextField
+                                select
+                                fullWidth
+                                size="small"
+                                label="Session Type"
+                                value={session.session_type}
+                                onChange={(e) =>
+                                  updateSession(
+                                    i,
+                                    si,
+                                    'session_type',
+                                    e.target.value,
+                                  )
+                                }
+                              >
+                                <MenuItem value="single">Single</MenuItem>
+                                <MenuItem value="double">Double</MenuItem>
+                                <MenuItem value="triple">Triple</MenuItem>
+                                <MenuItem value="custom">Custom</MenuItem>
+                              </TextField>
+                            </Grid>
+                            <Grid item xs={6} sm={2}>
+                              {session.session_type === 'custom' ? (
+                                <TextField
+                                  fullWidth
+                                  size="small"
+                                  type="time"
+                                  label="End"
+                                  InputLabelProps={{ shrink: true }}
+                                  value={session.end_time}
+                                  onChange={(e) =>
+                                    updateSession(
+                                      i,
+                                      si,
+                                      'end_time',
+                                      e.target.value,
+                                    )
+                                  }
+                                />
+                              ) : (
+                                <TextField
+                                  fullWidth
+                                  size="small"
+                                  label="End"
+                                  InputLabelProps={{ shrink: true }}
+                                  value={to12h(sessionEndTime(row, session))}
+                                  disabled
+                                />
+                              )}
+                            </Grid>
+                            <Grid item xs={10} sm={3}>
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="Room"
+                                placeholder="e.g., 2D"
+                                value={session.room}
+                                onChange={(e) =>
+                                  updateSession(i, si, 'room', e.target.value)
+                                }
+                              />
+                            </Grid>
+                            <Grid
+                              item
+                              xs={2}
+                              sm={1}
+                              sx={{ textAlign: 'center' }}
+                            >
+                              {row.sessions.length > 1 && (
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => removeSession(i, si)}
+                                  title="Remove session"
+                                  aria-label="Remove session"
+                                >
+                                  <CloseIcon fontSize="small" />
+                                </IconButton>
+                              )}
+                            </Grid>
+                          </Grid>
+                          {session.error && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: 'error.main',
+                                display: 'block',
+                                pl: 1,
+                                mt: 0.25,
+                              }}
+                            >
+                              ⚠ {session.error}
+                            </Typography>
+                          )}
+                        </Box>
+                      ))}
+                    </Stack>
+
+                    <Button
+                      size="small"
+                      onClick={() => addSession(i)}
+                      sx={{ mt: 1 }}
+                    >
+                      + Add session
+                    </Button>
                   </Paper>
                 ))}
               </Stack>
+
+              <Button size="small" onClick={addRow} sx={{ mt: 1.5 }}>
+                + Add another class
+              </Button>
+
+              {rowsResult && (
+                <Box sx={{ mt: 1.5 }}>
+                  {rowsResult.map((r, i) => (
+                    <Typography
+                      key={i}
+                      variant="caption"
+                      sx={{
+                        display: 'block',
+                        color:
+                          r.status === 'ok'
+                            ? 'success.main'
+                            : r.status === 'class_only' ||
+                              r.status === 'partial'
+                            ? 'warning.main'
+                            : 'error.main',
+                      }}
+                    >
+                      {r.status === 'ok'
+                        ? `✓ ${r.label} created with ${r.count} session${
+                            r.count === 1 ? '' : 's'
+                          }`
+                        : r.status === 'blocked'
+                        ? `⚠ ${r.msg}`
+                        : r.status === 'partial'
+                        ? `⚠ ${r.label} — ${r.count}/${r.total} sessions placed (${r.msg})`
+                        : r.status === 'class_only'
+                        ? `⚠ ${r.label} — ${r.msg}`
+                        : `✕ ${r.label} — ${r.msg}`}
+                    </Typography>
+                  ))}
+                </Box>
+              )}
+
+              <Stack
+                direction="row"
+                spacing={1.5}
+                justifyContent="flex-end"
+                sx={{ mt: 2 }}
+              >
+                <Button
+                  variant="contained"
+                  sx={{ color: '#fff' }}
+                  onClick={createAndScheduleRows}
+                  disabled={creatingRows || validRowCount === 0}
+                >
+                  {creatingRows
+                    ? 'Creating...'
+                    : `Save${validRowCount ? ` ${validRowCount}` : ''}`}
+                </Button>
+              </Stack>
+            </Box>
+
+            {showExisting && (
+              <>
+                <Divider sx={{ mb: 2 }} />
+                <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
+                  Your Classes
+                </Typography>
+                {classes.length === 0 ? (
+                  <Typography
+                    variant="body2"
+                    sx={{ color: 'text.disabled', fontStyle: 'italic' }}
+                  >
+                    No classes yet. Create your first class above.
+                  </Typography>
+                ) : (
+                  <Stack spacing={1}>
+                    {classes.map((cls) => (
+                      <Paper
+                        key={cls.id}
+                        variant="outlined"
+                        sx={{
+                          p: 1.5,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <Box>
+                          <Stack
+                            direction="row"
+                            spacing={1}
+                            alignItems="center"
+                          >
+                            <Typography variant="subtitle2">
+                              {cls.class_name}
+                            </Typography>
+                          </Stack>
+                          <Typography
+                            variant="caption"
+                            sx={{ color: 'text.secondary' }}
+                          >
+                            {cls.subject} • {cls.grade_level} •{' '}
+                            {cls.student_count} students
+                          </Typography>
+                        </Box>
+                        <Stack direction="row" spacing={0.5}>
+                          {onEditClass && (
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => onEditClass(cls)}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          )}
+                          {onDeleteClass && (
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => onDeleteClass(cls.id)}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          )}
+                        </Stack>
+                      </Paper>
+                    ))}
+                  </Stack>
+                )}
+              </>
             )}
           </>
         )}
