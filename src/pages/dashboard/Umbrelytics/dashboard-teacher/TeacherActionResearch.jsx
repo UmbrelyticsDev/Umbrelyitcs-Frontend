@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { formatDate } from 'src/utils/formatDate'
 import {
   Container,
   Typography,
@@ -355,7 +356,7 @@ export default function TeacherActionResearch() {
                               mt: 0.5,
                             }}
                           >
-                            {new Date(note.created_at).toLocaleDateString()}
+                            {formatDate(note.created_at)}
                             {note.updated_at !== note.created_at && ' (edited)'}
                           </Typography>
                         </Box>
@@ -456,7 +457,7 @@ export default function TeacherActionResearch() {
                       >
                         {lesson.subject}{' '}
                         {lesson.grade_level && `• ${lesson.grade_level}`} •{' '}
-                        {new Date(lesson.created_at).toLocaleDateString()}
+                        {formatDate(lesson.created_at)}
                       </Typography>
                     </Box>
                     <Button
@@ -536,7 +537,7 @@ export default function TeacherActionResearch() {
                         variant="caption"
                         sx={{ color: 'text.disabled' }}
                       >
-                        {new Date(f.uploaded_at).toLocaleDateString()}
+                        {formatDate(f.uploaded_at)}
                       </Typography>
                     </Box>
                     <Stack direction="row" spacing={1}>

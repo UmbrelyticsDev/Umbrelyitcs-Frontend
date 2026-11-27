@@ -21,6 +21,13 @@ import {
 } from '@material-ui/core'
 import Autocomplete from '@material-ui/lab/Autocomplete'
 import { LoadingButton } from '@material-ui/lab'
+import toolAxios from 'src/_apis_/toolAxios'
+
+// Standard grade levels offered as a dropdown during onboarding.
+const GRADE_LEVELS = [
+  'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7',
+  'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'Grade 13',
+]
 
 // Jamaica's 14 parishes — type-ahead suggestions for the location field.
 // freeSolo still allows a specific town/city to be typed.
@@ -54,6 +61,7 @@ export default function Onboarding() {
     posr: 'NONE',
   })
   const [classifications, setClassifications] = useState([])
+  const [subjectMaster, setSubjectMaster] = useState([])
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -68,6 +76,10 @@ export default function Onboarding() {
         if (res.data.status === 1) setClassifications(res.data.result || [])
       })
       .catch((e) => console.log('classifications load failed', e))
+    toolAxios
+      .get('/api/curriculum/subjects')
+      .then((res) => setSubjectMaster((res.data?.data || []).map((r) => r.subject_name).filter(Boolean)))
+      .catch(() => {})
   }, [isTeacher])
 
   // Already onboarded (or not a teacher) — nothing to collect here.
@@ -182,8 +194,7 @@ export default function Onboarding() {
               <Grid item xs={12}>
                 <Autocomplete
                   multiple
-                  freeSolo
-                  options={[]}
+                  options={subjectMaster}
                   value={form.subjects}
                   onChange={(e, v) => setForm((f) => ({ ...f, subjects: v }))}
                   renderInput={(params) => (
@@ -197,8 +208,7 @@ export default function Onboarding() {
               <Grid item xs={12}>
                 <Autocomplete
                   multiple
-                  freeSolo
-                  options={[]}
+                  options={GRADE_LEVELS}
                   value={form.gradeLevels}
                   onChange={(e, v) =>
                     setForm((f) => ({ ...f, gradeLevels: v }))

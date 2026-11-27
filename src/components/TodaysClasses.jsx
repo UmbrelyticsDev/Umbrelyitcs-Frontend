@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom'
 import { PATH_DASHBOARD } from 'src/routes/paths'
 import toolAxios from 'src/_apis_/toolAxios'
 import { to12h } from 'src/utils/time'
+import { formatDateLong } from 'src/utils/formatDate'
 
 // Dashboard section: the teacher's classes scheduled for today, pulled from the
 // timetable. Self-contained — drop <TodaysClasses /> into the dashboard page.
@@ -65,7 +66,7 @@ export default function TodaysClasses() {
       >
         <Typography variant="h5">Today&apos;s Classes</Typography>
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          {today}
+          {formatDateLong(new Date())}
         </Typography>
       </Stack>
 

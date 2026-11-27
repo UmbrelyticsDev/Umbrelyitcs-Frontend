@@ -31,7 +31,7 @@ import {
 import { useSnackbar } from 'notistack'
 import Page from '../../../../components/Page'
 import toolAxios from 'src/_apis_/toolAxios'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import TimetableImportModal from './TimetableImportModal'
 import { to12h } from 'src/utils/time'
 import AddClassesDialog from 'src/components/AddClassesDialog'
@@ -128,6 +128,7 @@ const fmtTimeDisplay = (mins) => to12h(fmtTime(mins))
 // Hour-ruler label in 12-hour am/pm form.
 const fmtHour = (h) => to12h(`${String(h).padStart(2, '0')}:00`)
 const multiplierFor = (t) => (t === 'double' ? 2 : t === 'triple' ? 3 : 1)
+const SCHEDULE_MAX_MIN = 22 * 60 // 10:00 PM — latest a session may end
 
 export default function TeacherTimetable() {
   const { enqueueSnackbar } = useSnackbar()
@@ -165,6 +166,34 @@ export default function TeacherTimetable() {
   const gridBodyRef = useRef(null)
   const dragRef = useRef(null)
   const [viewEntry, setViewEntry] = useState(null)
+  const navigate = useNavigate()
+  // Subject -> distinct syllabus names, for the class detail modal's syllabus
+  // links (mirrors the lesson-planner timetable). Built from the curriculum.
+  const [syllabusMap, setSyllabusMap] = useState({})
+  useEffect(() => {
+    let active = true
+    toolAxios
+      .get('/api/curriculum/objectives')
+      .then((res) => {
+        const objs = res.data?.data || []
+        const map = {}
+        objs.forEach((o) => {
+          if (!o.subject_name || !o.syllabus_name) return
+          const key = o.subject_name.trim().toLowerCase()
+          if (!map[key]) map[key] = new Set()
+          map[key].add(o.syllabus_name)
+        })
+        const finalMap = {}
+        Object.keys(map).forEach((k) => {
+          finalMap[k] = [...map[k]]
+        })
+        if (active) setSyllabusMap(finalMap)
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [])
   const suppressClickRef = useRef(false)
   const geomRef = useRef({ rangeStartMin: 0, rangeEndMin: 0 })
   const [drag, setDrag] = useState(null)
@@ -392,6 +421,14 @@ export default function TeacherTimetable() {
       return
     }
 
+    if (end_time && toMinutes(end_time) > SCHEDULE_MAX_MIN) {
+      enqueueSnackbar(
+        'This session would end after 10:00 PM. Choose an earlier start or a shorter session.',
+        { variant: 'error' },
+      )
+      return
+    }
+
     try {
       if (editingEntry) {
         await toolAxios.put(`/api/timetables/${editingEntry.id}`, {
@@ -504,6 +541,21 @@ export default function TeacherTimetable() {
   // flow below).
   const saveClass = async () => {
     try {
+      // Window guard: no session may end after 10:00 PM (22:00).
+      for (const s of sessionEdits) {
+        if (s.session_type === 'custom') continue
+        const len = parseInt(s.length, 10) || getBaseLen(editingClass.id)
+        const end =
+          toMinutes(s.start_time) + multiplierFor(s.session_type) * len
+        if (end > SCHEDULE_MAX_MIN) {
+          enqueueSnackbar(
+            `${s.day_of_week} session would end after 10:00 PM — choose an earlier start or a shorter session.`,
+            { variant: 'error' },
+          )
+          return
+        }
+      }
+
       await toolAxios.put(
         `/api/timetables/classes/${editingClass.id}`,
         classForm,
@@ -762,13 +814,11 @@ export default function TeacherTimetable() {
       </Grid>
       <Grid item xs={12} sm={6}>
         <Autocomplete
-          freeSolo
           options={subjectOptions}
-          inputValue={classForm.subject || ''}
-          onInputChange={(e, v, reason) => {
-            if (reason === 'reset') return
-            setClassForm({ ...classForm, subject: v })
-          }}
+          value={classForm.subject || null}
+          onChange={(e, v) =>
+            setClassForm({ ...classForm, subject: v || '' })
+          }
           renderInput={(params) => (
             <TextField {...params} fullWidth label="Subject" />
           )}
@@ -776,17 +826,11 @@ export default function TeacherTimetable() {
       </Grid>
       <Grid item xs={12} sm={6}>
         <Autocomplete
-          freeSolo
           options={gradeOptions}
-          inputValue={classForm.grade_level || ''}
-          onInputChange={(e, v, reason) => {
-            // Ignore MUI's "reset" sync (fires on mount / when options
-            // load and the current text isn't in the list) — it would
-            // otherwise blank a valid grade that isn't an onboarding
-            // option. Only honour real user edits.
-            if (reason === 'reset') return
-            setClassForm({ ...classForm, grade_level: v })
-          }}
+          value={classForm.grade_level || null}
+          onChange={(e, v) =>
+            setClassForm({ ...classForm, grade_level: v || '' })
+          }
           renderInput={(params) => (
             <TextField {...params} fullWidth label="Grade Level" />
           )}
@@ -923,6 +967,8 @@ export default function TeacherTimetable() {
                       fullWidth
                       size="small"
                       type="time"
+                      min="06:00"
+                      max="22:00"
                       label="Start"
                       InputLabelProps={{ shrink: true }}
                       value={s.start_time}
@@ -954,6 +1000,8 @@ export default function TeacherTimetable() {
                         fullWidth
                         size="small"
                         type="time"
+                        min="06:00"
+                        max="22:00"
                         label="End"
                         InputLabelProps={{ shrink: true }}
                         value={s.end_time}
@@ -966,10 +1014,22 @@ export default function TeacherTimetable() {
                         fullWidth
                         size="small"
                         type="number"
-                        label="Length (min)"
-                        value={s.length}
-                        onChange={(e) =>
-                          updateSessionEdit(idx, 'length', e.target.value)
+                        label="Duration (min)"
+                        value={
+                          multiplierFor(s.session_type) *
+                          (parseInt(s.length, 10) || 0)
+                        }
+                        InputProps={{ readOnly: true }}
+                        helperText={
+                          s.start_time
+                            ? `ends ${to12h(
+                                fmtTime(
+                                  toMinutes(s.start_time) +
+                                    multiplierFor(s.session_type) *
+                                      (parseInt(s.length, 10) || 0),
+                                ),
+                              )} · ${parseInt(s.length, 10) || 0}-min base`
+                            : 'Set on your profile'
                         }
                         inputProps={{ min: 10, max: 120 }}
                       />
@@ -1084,7 +1144,7 @@ export default function TeacherTimetable() {
                 onClick={() => setEnvironmentOpen(true)}
                 sx={{ color: '#fff' }}
               >
-                Teaching Environment
+                Set School Settings and Surroundings
               </Button>
             </Stack>
           )}
@@ -1622,6 +1682,8 @@ export default function TeacherTimetable() {
               <TextField
                 fullWidth
                 type="time"
+                min="06:00"
+                max="22:00"
                 label="Start Time"
                 InputLabelProps={{ shrink: true }}
                 value={entryForm.start_time}
@@ -1632,6 +1694,8 @@ export default function TeacherTimetable() {
               <TextField
                 fullWidth
                 type="time"
+                min="06:00"
+                max="22:00"
                 label={
                   entryForm.session_type === 'custom'
                     ? 'End Time'
@@ -1727,7 +1791,7 @@ export default function TeacherTimetable() {
                 ['Start Time', to12h(trimTime(viewEntry.start_time))],
                 ['End Time', to12h(trimTime(viewEntry.end_time))],
                 [
-                  'Session Type',
+                  'Duration',
                   `${
                     toMinutes(viewEntry.end_time) -
                     toMinutes(viewEntry.start_time)
@@ -1749,6 +1813,46 @@ export default function TeacherTimetable() {
               ))}
             </Grid>
           )}
+          {viewEntry &&
+            (syllabusMap[(viewEntry.subject || '').trim().toLowerCase()] || [])
+              .length > 0 && (
+              <Box sx={{ mt: 2 }}>
+                <Typography
+                  variant="caption"
+                  sx={{ color: 'text.secondary', display: 'block', mb: 0.5 }}
+                >
+                  Syllabus
+                </Typography>
+                <Stack spacing={0.5} alignItems="flex-start">
+                  {(
+                    syllabusMap[
+                      (viewEntry.subject || '').trim().toLowerCase()
+                    ] || []
+                  ).map((name) => (
+                    <Button
+                      key={name}
+                      size="small"
+                      variant="text"
+                      onClick={() => {
+                        const subj = viewEntry.subject
+                        setViewEntry(null)
+                        navigate('/dashboard/syllabuses', {
+                          state: { subject: subj },
+                        })
+                      }}
+                      sx={{
+                        justifyContent: 'flex-start',
+                        textTransform: 'none',
+                        p: 0.25,
+                        minWidth: 0,
+                      }}
+                    >
+                      {name} →
+                    </Button>
+                  ))}
+                </Stack>
+              </Box>
+            )}
         </DialogContent>
         <DialogActions>
           {canEdit && (

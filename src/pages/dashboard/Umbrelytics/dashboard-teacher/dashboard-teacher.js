@@ -364,6 +364,37 @@ export default function DashboardTeacher() {
                     </Card>
                   </Grid>
                 ))}
+                <Grid item xs={12} sm={6} md={4}>
+                  <Card
+                    sx={{
+                      p: 3,
+                      height: '100%',
+                      minHeight: 96,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      border: '2px dashed',
+                      borderColor: 'grey.300',
+                      color: 'text.secondary',
+                      "&:hover": {
+                        borderColor: 'primary.main',
+                        color: 'primary.main',
+                      },
+                    }}
+                    onClick={() =>
+                      navigate(
+                        `${PATH_DASHBOARD.general.teacherTimetable}?manageClasses=1`,
+                      )
+                    }
+                  >
+                    <Typography variant="h4" sx={{ lineHeight: 1, mb: 0.5 }}>
+                      +
+                    </Typography>
+                    <Typography variant="body2">Add Class</Typography>
+                  </Card>
+                </Grid>
               </Grid>
             </Box>
           )}
@@ -465,6 +496,9 @@ export default function DashboardTeacher() {
                   </Stack>
                 </DialogContent>
                 <DialogActions>
+                  <Button onClick={() => navigate('/dashboard/syllabuses')}>
+                    View Syllabus
+                  </Button>
                   <Button
                     variant="contained"
                     onClick={() =>

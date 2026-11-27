@@ -512,12 +512,11 @@ export default function AddClassesDialog({
                       </Grid>
                       <Grid item xs={12} sm={4}>
                         <Autocomplete
-                          freeSolo
                           size="small"
                           options={subjectOptions}
-                          inputValue={row.subject}
+                          value={row.subject || null}
                           disabled={!!row.created_id}
-                          onInputChange={(e, v) => updateRow(i, 'subject', v)}
+                          onChange={(e, v) => updateRow(i, 'subject', v || '')}
                           renderInput={(params) => (
                             <TextField {...params} fullWidth label="Subject" />
                           )}
@@ -525,13 +524,12 @@ export default function AddClassesDialog({
                       </Grid>
                       <Grid item xs={12} sm={4}>
                         <Autocomplete
-                          freeSolo
                           size="small"
                           options={gradeOptions}
-                          inputValue={row.grade_level}
+                          value={row.grade_level || null}
                           disabled={!!row.created_id}
-                          onInputChange={(e, v) =>
-                            updateRow(i, 'grade_level', v)
+                          onChange={(e, v) =>
+                            updateRow(i, 'grade_level', v || '')
                           }
                           renderInput={(params) => (
                             <TextField {...params} fullWidth label="Grade" />

@@ -33,7 +33,7 @@ import sidebarConfig from './SidebarConfig'
 import { DocIcon } from '../../assets'
 import Image from '../../../src/images/Teacher1.png'
 import Logo from 'src/components/Logo'
-import Logo1 from 'src/components/Logo/android-chrome-512x512.png'
+import Logo1 from 'src/components/Logo/logo-sidebar.png'
 import axios from 'axios'
 import toolAxios from 'src/_apis_/toolAxios'
 import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
@@ -245,7 +245,7 @@ export default function DashboardSidebar({ isOpenSidebar, onCloseSidebar }) {
       }}
     >
       {/* Company logo — clickable, returns to the dashboard */}
-      <Box sx={{ px: 2, pt: 2.5, pb: 1 }}>
+      <Box sx={{ px: 2, pt: 2.5, pb: 4 }}>
         <RouterLink to="/dashboard" style={{ display: 'block' }}>
           <Box
             component="img"

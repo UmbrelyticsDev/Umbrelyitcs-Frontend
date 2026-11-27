@@ -24,6 +24,7 @@ import homeFill from '@iconify/icons-eva/home-fill'
 import Page from '../../../../components/Page'
 import axios from 'axios'
 import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
+import { formatDateLong } from 'src/utils/formatDate'
 
 const user = JSON.parse(localStorage.getItem('user') || '{}')
 const user_type = JSON.parse(localStorage.getItem('user_type'))
@@ -31,11 +32,7 @@ const user_type = JSON.parse(localStorage.getItem('user_type'))
 const fmtDate = (d) => {
   if (!d) return '—'
   try {
-    return new Date(d).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
+    return formatDateLong(d)
   } catch {
     return d
   }

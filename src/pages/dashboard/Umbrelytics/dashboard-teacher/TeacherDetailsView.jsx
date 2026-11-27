@@ -16,10 +16,12 @@ import {
   Alert,
   TextField,
   InputAdornment,
+  MenuItem,
 } from '@material-ui/core'
 import { Icon } from '@iconify/react'
 import editFill from '@iconify/icons-eva/edit-2-fill'
 import clockFill from '@iconify/icons-eva/clock-fill'
+import calendarFill from '@iconify/icons-eva/calendar-fill'
 import emailFill from '@iconify/icons-eva/email-fill'
 import phoneFill from '@iconify/icons-eva/phone-fill'
 import pinFill from '@iconify/icons-eva/pin-fill'
@@ -30,6 +32,7 @@ import Page from '../../../../components/Page'
 import axios from 'axios'
 import { REST_API_END_POINT } from 'src/constants/Defaultvalues'
 import { PATH_DASHBOARD } from 'src/routes/paths'
+import { getDateFormatPref, setDateFormatPref } from 'src/utils/formatDate'
 
 // Read-only view of the signed-in teacher's own details, now including a
 // read-only Salary & Employment card and an on-demand salary calculation.
@@ -57,6 +60,7 @@ export default function TeacherDetailsView() {
 
   // Inline edit for the teacher's default Timetable Period (session length).
   const [editingPeriod, setEditingPeriod] = useState(false)
+  const [dateFormat, setDateFormat] = useState(getDateFormatPref)
   const [periodValue, setPeriodValue] = useState('')
   const [savingPeriod, setSavingPeriod] = useState(false)
 
@@ -394,6 +398,41 @@ export default function TeacherDetailsView() {
                           Edit
                         </Button>
                       )}
+                    </Stack>
+
+                    {/* Date format — display preference, applied across the
+                        site immediately (stored locally, no save needed). */}
+                    <Stack direction="row" alignItems="center" spacing={1.5}>
+                      <Box
+                        component={Icon}
+                        icon={calendarFill}
+                        sx={{ width: 22, height: 22, color: 'text.secondary' }}
+                      />
+                      <Box sx={{ flexGrow: 1 }}>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: 'text.secondary' }}
+                        >
+                          Date format
+                        </Typography>
+                        <TextField
+                          select
+                          size="small"
+                          value={dateFormat}
+                          onChange={(e) => {
+                            const next = setDateFormatPref(e.target.value)
+                            setDateFormat(next)
+                          }}
+                          sx={{ mt: 0.5, width: 240 }}
+                        >
+                          <MenuItem value="DMY">
+                            Day / Month / Year (27/11/2026)
+                          </MenuItem>
+                          <MenuItem value="MDY">
+                            Month / Day / Year (11/27/2026)
+                          </MenuItem>
+                        </TextField>
+                      </Box>
                     </Stack>
 
                     <Box>
